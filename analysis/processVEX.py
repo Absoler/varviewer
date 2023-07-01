@@ -6,15 +6,97 @@ register_names = {16: 'rax', 24: 'rcx', 32: 'rdx', 40: 'rbx', 48: 'rsp', 56: 'rb
 register_code = {register_names[code]:code for code in register_names}
 register_code_size = {register_size_names[code]:code for code in register_size_names}
 
-class ValueType(Enum):
-    MEM = 0
-    REG = 1
-    CONST = 2
+vex_to_dwarf = {16: 0, 24: 2, 32: 1, 40: 3, 48: 7, 56: 6, 64: 4, 72: 5, 80: 8, 88: 9, 96: 10, 104: 11, 112: 12, 120: 13, 128: 14, 136: 15}
+dwarf_to_vex = {vex_to_dwarf[vex]:vex for vex in vex_to_dwarf}
 
-class Value:
-    def __init__(self) -> None:
-        pass
+DW_OP_abs                       = 0x19
+DW_OP_and                       = 0x1a
+DW_OP_div                       = 0x1b
+DW_OP_minus                     = 0x1c
+DW_OP_mod                       = 0x1d
+DW_OP_mul                       = 0x1e
+DW_OP_neg                       = 0x1f
+DW_OP_not                       = 0x20
+DW_OP_or                        = 0x21
+DW_OP_plus                      = 0x22
+DW_OP_shl                       = 0x24
+DW_OP_shr                       = 0x25
+DW_OP_shra                      = 0x26
+DW_OP_xor                       = 0x27
+DW_OP_eq                        = 0x29
+DW_OP_ge                        = 0x2a
+DW_OP_gt                        = 0x2b
+DW_OP_le                        = 0x2c
+DW_OP_lt                        = 0x2d
+DW_OP_ne                        = 0x2e
+
+def op_match(dwarf_op:int, vex_op:str):
+
+    if dwarf_op == None:
+        return False
     
+    if dwarf_op == DW_OP_abs:
+        return vex_op.startswith("Iop_Abs")
+    
+    elif dwarf_op == DW_OP_and:
+        return vex_op.startswith("Iop_And")
+    
+    elif dwarf_op == DW_OP_div:
+        return vex_op.startswith("Iop_Div")
+    
+    elif dwarf_op == DW_OP_minus:
+        return vex_op.startswith("Iop_Sub")
+    
+    elif dwarf_op == DW_OP_mod:
+        return vex_op.startswith("Iop_DivMod")
+    
+    elif dwarf_op == DW_OP_mul:
+        return vex_op.startswith("Iop_Mul")
+    
+    elif dwarf_op == DW_OP_neg:
+        return vex_op.startswith("Iop_Neg")
+    
+    elif dwarf_op == DW_OP_not:
+        return vex_op.startswith("Iop_Not")
+    
+    elif dwarf_op == DW_OP_or:
+        return vex_op.startswith("Iop_Or")
+    
+    elif dwarf_op == DW_OP_plus:
+        return vex_op.startswith("Iop_Add")
+    
+    elif dwarf_op == DW_OP_shl:
+        return vex_op.startswith("Iop_Shl")
+    
+    elif dwarf_op == DW_OP_shr:
+        return vex_op.startswith("Iop_Shr")
+    
+    elif dwarf_op == DW_OP_shra:
+        return vex_op.startswith("Iop_Sar")
+    
+    elif dwarf_op == DW_OP_xor:
+        return vex_op.startswith("Iop_Xor")
+    
+    elif dwarf_op == DW_OP_eq:
+        return vex_op.startswith("Iop_CmpEQ")
+    
+    elif dwarf_op == DW_OP_ge:
+        return vex_op.startswith("Iop_CmpGE")
+    
+    elif dwarf_op == DW_OP_gt:
+        return vex_op.startswith("Iop_CmpGT")
+    
+    elif dwarf_op == DW_OP_le:
+        return vex_op.startswith("Iop_CmpLE")
+    
+    elif dwarf_op == DW_OP_lt:
+        return vex_op.startswith("Iop_CmpLT")
+    
+    elif dwarf_op == DW_OP_ne:
+        return vex_op.startswith("Iop_CmpNE")
+    
+    else:
+        print(f"wrong dwarf op {dwarf_op}")
 
 
 if __name__ == "__main__":

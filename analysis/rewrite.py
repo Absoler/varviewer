@@ -75,19 +75,21 @@ if __name__ == "__main__":
     
 
     insts = []
+    lastip = 0
     for ins in decoder:
-        if ins.ip >= startpc:
-            insts.append(ins)
         if ins.ip >= endpc:
             break
+        if ins.ip >= startpc:
+            insts.append(ins)
+        lastip = ins.ip
     
     assembly_code = construct(insts, startpc, endpc)
     print(assembly_code)
 
     temp_name = "my_assembly"
-    with open(temp_name + ".s", "w") as as_file:
+    with open(temp_name + ".S", "w") as as_file:
         as_file.write(assembly_code)
-    ret = os.system(f"as {temp_name}.s -o {temp_name}.o && ld {temp_name}.o -Ttext 0 -o {temp_name}")
+    ret = os.system(f"as {temp_name}.S -o {temp_name}.o && ld {temp_name}.o -Ttext 0 -o {temp_name}")
     if ret != 0:
         file.close()
         exit()
@@ -97,6 +99,10 @@ if __name__ == "__main__":
     write_dot(cfg.graph, temp_name+".dot")
     os.system(f"dot {temp_name}.dot -T png -o {temp_name}.png")
     
+    from analysis import traverse
+    vex_file = open(temp_name+".vex", "w")
+    traverse(proj, cfg, file=vex_file)
+    vex_file.close()
     
     file.close()
 

@@ -37,22 +37,22 @@ int Evaluator::exec_operation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned
     
     case DW_OP_deref:
     {
-        Expression *addr = new Expression();
+        auto addr = std::make_shared<Expression>();
         addr->setExpFrom(stk.top());
         stk.pop();
         Expression deref;
-        deref.mem = std::shared_ptr<Expression>(addr);
+        deref.mem = addr;
         stk.push(deref);
         break;
     }
     case DW_OP_deref_size:
     case DW_OP_deref_type:
     {
-        Expression *addr = new Expression();
+        auto addr = std::make_shared<Expression>();
         addr->setExpFrom(stk.top());
         stk.pop();
         Expression deref;
-        deref.mem = std::shared_ptr<Expression>(addr);
+        deref.mem = addr;
         deref.mem_offset = op1;
         stk.push(deref);
         break;
@@ -137,6 +137,7 @@ int Evaluator::exec_operation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned
     case DW_OP_mul:
     case DW_OP_or:
     case DW_OP_plus:
+    case DW_OP_plus_uconst:
     case DW_OP_shl:
     case DW_OP_shr:
     case DW_OP_shra:
@@ -150,8 +151,13 @@ int Evaluator::exec_operation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned
     {
         Expression exp1 = stk.top();
         stk.pop();
-        Expression exp2 = stk.top();
-        stk.pop();
+        Expression exp2;
+        if(op==DW_OP_plus_uconst){
+            exp2.offset = op1;
+        }else{
+            exp2 = stk.top();
+            stk.pop();
+        }
         Expression res = Expression::bin_op(exp1, exp2, op);
         if(!res.valid){
             ret = op;
@@ -159,12 +165,6 @@ int Evaluator::exec_operation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned
             stk.push(res);
         }
         break;
-    }
-    case DW_OP_plus_uconst:{
-        Expression exp = stk.top();
-        stk.pop();
-        exp.offset += op1;
-        stk.push(exp);
     }
 
     case DW_OP_abs:

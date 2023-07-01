@@ -9,6 +9,10 @@
 
 using namespace std;
 
+/* expression compression may cause problem to match with vex ir
+*/
+bool no_compress = false;
+
 Expression Expression::createEmpty(){
     Expression res;
     res.empty = true;
@@ -93,6 +97,10 @@ bool Expression::valid_bin_op(const Expression &exp1, const Expression &exp2, Dw
         
         
     }else if(op==DW_OP_div){
+
+        if(no_compress){
+            return false;
+        }
         res = exp1.no_reg();
         res &= (exp1.offset != 0);
 
@@ -100,6 +108,10 @@ bool Expression::valid_bin_op(const Expression &exp1, const Expression &exp2, Dw
 
      
     }else if(op==DW_OP_mod){
+
+        if(no_compress){
+            return false;
+        }
         res = exp1.no_reg();
         res &= (exp1.offset != 0);
        
@@ -108,25 +120,53 @@ bool Expression::valid_bin_op(const Expression &exp1, const Expression &exp2, Dw
         
         
     }else if(op==DW_OP_or){
+
+        if(no_compress){
+            return false;
+        }
         res = exp1.no_reg() && exp2.no_reg();
 
     }else if(op==DW_OP_and){
+
+        if(no_compress){
+            return false;
+        }
         res = exp1.no_reg() && exp2.no_reg();
 
     }else if(op==DW_OP_shl){
+
+        if(no_compress){
+            return false;
+        }
         res = exp1.no_reg() && exp2.no_reg();
 
     }else if(op==DW_OP_shr){
 
+        if(no_compress){
+            return false;
+        }
         res = exp1.no_reg() && exp2.no_reg();
     }else if(op==DW_OP_shra){
 
+        if(no_compress){
+            return false;
+        }
         res = exp1.no_reg() && exp2.no_reg();
     }else if(op>=DW_OP_eq && op<=DW_OP_ne){
+
+        if(no_compress){
+            return false;
+        }
         res = exp1.no_reg() && exp2.no_reg();
     }
 
     if(exp1.isCFA || exp2.isCFA){
+        res = false;
+    }
+    if(exp1.mem || exp2.mem){
+        res = false;
+    }
+    if(exp1.hasChild || exp2.hasChild){
         res = false;
     }
 
@@ -267,12 +307,20 @@ bool Expression::valid_unary_op(const Expression &exp, Dwarf_Small op){
     if(op==DW_OP_neg){
 
     }else if(op==DW_OP_abs){
+        if(no_compress){
+            return false;
+        }
         res = exp.no_reg();
     }else if(op==DW_OP_not){
+        if(no_compress){
+            return false;
+        }
         res = exp.no_reg();
     }
 
     res = !exp.isCFA;
+    res = res && exp.mem;
+    res = res && exp.hasChild;
 
     return res;
 }

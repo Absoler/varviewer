@@ -15,10 +15,12 @@ json createJsonforExpression(const Expression &exp){
             "mem" : <Expression>
             "valid" : <bool>
             "empty" : <bool>
+            "sign" : <bool>
 
             "hasChild" : <bool>
             "sub1" : <Expression>
             "sub2" : <Expression>
+            "op" : <Dwarf_Unsigned>
         }
     */
     json res;

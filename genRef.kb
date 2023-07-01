@@ -1,0 +1,9 @@
+#!/bin/bash
+if [ $# -ge 2 ] ; then
+    opt=$2
+else
+    opt=-O2
+fi
+gcc-12.1 $1.c -g $opt -o $1
+objdump -dl $1 > $1.dis
+objdump -Wi $1 > $1.info

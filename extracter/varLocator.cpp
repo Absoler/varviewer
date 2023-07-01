@@ -160,50 +160,6 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die){
         addr.output();
     }
 
-    // dealloc memory
-    // for(AddressExp addrExp: addr.addrs){
-    //     stack<Expression*> ptrs;
-    //     queue<Expression*> que;
-    //     if(addrExp.mem){
-    //         // que.push(addrExp.mem);
-    //         // ptrs.push(addrExp.mem);
-    //         delete addrExp.mem;
-    //         addrExp.mem = NULL;
-    //     }
-    //     if(addrExp.hasChild && addrExp.sub1){
-    //         // que.push(addrExp.sub1);
-    //         // ptrs.push(addrExp.sub1);
-    //         delete addrExp.sub1;
-    //         addrExp.sub1 = NULL;
-    //     }
-    //     if(addrExp.hasChild && addrExp.sub2){
-    //         // que.push(addrExp.sub2);
-    //         // ptrs.push(addrExp.sub2);
-    //         delete addrExp.sub2;
-    //         addrExp.sub2 = NULL;
-    //     }
-    //     // while(!que.empty()){
-    //     //     Expression *ptr = que.front();
-    //     //     que.pop();
-    //     //     if(ptr->mem){
-    //     //         que.push(ptr->mem);
-    //     //         ptrs.push(ptr->mem);
-    //     //     }
-    //     //     if(ptr->hasChild && ptr->sub1){
-    //     //         que.push(ptr->sub1);
-    //     //         ptrs.push(ptr->sub1);
-    //     //     }
-    //     //     if(ptr->hasChild && ptr->sub2){
-    //     //         que.push(ptr->sub2);
-    //     //         ptrs.push(ptr->sub2);
-    //     //     }
-    //     // }
-    //     // while(!ptrs.empty()){
-    //     //     Expression *tmp = ptrs.top();
-    //     //     delete tmp;
-    //     //     ptrs.pop();
-    //     // }
-    // }
     
     return 0;
 }
