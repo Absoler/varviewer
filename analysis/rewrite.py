@@ -102,7 +102,10 @@ if __name__ == "__main__":
     from analysis import traverse
     vex_file = open(temp_name+".vex", "w")
     traverse(proj, cfg, file=vex_file)
+    vex0_file = open(temp_name+".vex.0", "w")
+    traverse(proj, cfg, file=vex0_file, opt_level = 0)
     vex_file.close()
+    vex0_file.close()
     
     file.close()
 

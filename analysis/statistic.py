@@ -4,7 +4,7 @@
 import pyvex
 import angr
 import sys
-from processVEX import register_names
+from dwarf_vex_map import vex_reg_names
 from analysis import traverse
 
 def count_written_regs(irsb:pyvex.IRSB):
@@ -49,4 +49,4 @@ for reg in keys:
     num1 = cnt_1[reg] if reg in cnt_1 else 0
     if num0 == num1:
         continue
-    print(f"{register_names[reg]} written times of opt0 {num0} and opt1 {num1}")
+    print(f"{vex_reg_names[reg]} written times of opt0 {num0} and opt1 {num1}")

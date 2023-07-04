@@ -3,8 +3,12 @@ from bisect import bisect_right
 import sys
 import json
 from iced_x86 import *
-from register_mapping import iced_dwarf_regMap, dwarf_iced_regMap, dwarf_name
+from dwarf_iced_map import iced_dwarf_regMap, dwarf_iced_regMap, dwarf_reg_names
 import ctypes
+from dwarf_vex_map import *
+from z3 import *
+
+load:FuncDeclRef = Function("load", BitVecSort(64), BitVecSort(64))
 
 class Expression:
     '''
@@ -37,9 +41,18 @@ class Expression:
             self.sign:bool = jsonExp["sign"]
 
             self.hasChild:bool = jsonExp["hasChild"]
-            self.sub1:Expression = Expression(jsonExp=jsonExp["sub1"]) if self.hasChild else None
-            self.sub2:Expression = Expression(jsonExp=jsonExp["sub2"]) if "sub2" in jsonExp else None
+            if self.hasChild:
+                self.sub1:Expression = Expression(jsonExp=jsonExp["sub1"])
+                self.sub1.father = self
+            else:
+                self.sub1 = None
+            if "sub2" in jsonExp:
+                self.sub2:Expression = Expression(jsonExp=jsonExp["sub2"])
+                self.sub2.father = self
+            else:
+                self.sub2 = None
             self.op:int = jsonExp["op"] if self.hasChild else None
+            self.father = None
 
         else:
             self.sign:bool = False
@@ -54,6 +67,8 @@ class Expression:
             self.sub1 = None
             self.sub2 = None
             self.op = None
+            self.father = None
+        
 
     def add(self, other):
         ''' only valid if simple expression
@@ -83,8 +98,99 @@ class Expression:
             else:
                 res.regs[reg] = -other.regs[reg]
 
+    def is_const(self):
+        return self.regs == None and self.mem == None and not self.empty and self.valid
+    
+    def is_reg(self):
+        return self.regs is not None and self.offset == 0 and self.mem == None
+    
     def isMem(self):
-        return self.mem != None and self.offset==0 and self.reg == 128 and self.regs == None
+        return self.mem != None and self.offset == 0  and self.regs == None
+    
+    def get_Z3_expr(self) -> BitVecRef:
+    
+        if self.hasChild:
+            if self.op == DW_OP_abs:
+                return Abs(self.sub1.get_Z3_expr())
+            
+            elif self.op == DW_OP_neg:
+                return -(self.sub1.get_Z3_expr())
+            
+            elif self.op == DW_OP_not:
+                return ~(self.sub1.get_Z3_expr())
+            
+            elif self.op == DW_OP_and:
+                return self.sub1.get_Z3_expr() & self.sub2.get_Z3_expr()
+            
+            elif self.op == DW_OP_or:
+                return self.sub1.get_Z3_expr() | self.sub2.get_Z3_expr()
+            
+            elif self.op == DW_OP_xor:
+                return self.sub1.get_Z3_expr() ^ self.sub2.get_Z3_expr()
+            
+            elif self.op == DW_OP_div:
+                return self.sub2.get_Z3_expr() / self.sub1.get_Z3_expr()
+            
+            elif self.op == DW_OP_mod:
+                return self.sub2.get_Z3_expr() % self.sub1.get_Z3_expr()
+
+            elif self.op == DW_OP_minus:
+                return self.sub2.get_Z3_expr() - self.sub1.get_Z3_expr()
+            
+            elif self.op == DW_OP_plus or self.op == DW_OP_plus_uconst:
+                return self.sub1.get_Z3_expr() + self.sub2.get_Z3_expr()
+
+            elif self.op == DW_OP_mul:
+                return self.sub1.get_Z3_expr() * self.sub2.get_Z3_expr()
+            
+            elif self.op == DW_OP_shl:
+                return self.sub2.get_Z3_expr() << self.sub1.get_Z3_expr()
+            
+            elif self.op == DW_OP_shr:
+                ''' 
+                '''
+                return self.sub2.get_Z3_expr() >> self.sub1.get_Z3_expr()
+
+            elif self.op == DW_OP_shra:
+                return self.sub2.get_Z3_expr() << self.sub1.get_Z3_expr()
+
+            elif self.op == DW_OP_eq:
+                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                return If(exp2==exp1, BitVecVal(1, 64), BitVecVal(0, 64))
+            
+            elif self.op == DW_OP_ge:
+                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                return If(exp2>=exp1, BitVecVal(1, 64), BitVecVal(0, 64))
+            
+            elif self.op == DW_OP_gt:
+                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                return If(exp2>exp1, BitVecVal(1, 64), BitVecVal(0, 64))
+            
+            elif self.op == DW_OP_le:
+                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                return If(exp2<=exp1, BitVecVal(1, 64), BitVecVal(0, 64))
+
+            elif self.op == DW_OP_lt:
+                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                return If(exp2<exp1, BitVecVal(1, 64), BitVecVal(0, 64))
+
+            elif self.op == DW_OP_ne:
+                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                return If(exp2!=exp1, BitVecVal(1, 64), BitVecVal(0, 64))
+
+            else:
+                assert(0)
+        
+        ''' regs + offset
+        '''
+        res = BitVecVal(self.offset, 64)
+        if self.regs:
+            for reg in self.regs:
+                res = res + self.regs[reg] * BitVec(dwarf_reg_names[reg], 64)
+
+        return res
+            
+                
 
 class AddressExp(Expression):
     def __init__(self, jsonAddrExp:dict = {}) -> None:
@@ -160,6 +266,176 @@ class AddressExp(Expression):
     def is_same_simple_expr(self, other):
         res = self.offset == other.offset
         res = res or self.regs == other.regs
+
+
+    def move_imme_out_pass(self):
+        ''' for a complex expression, move the inside
+            imme value outside, such as
+
+                (rax+2)<<4 -> (rax<<4) + 16
+        '''
+        queue = [self]
+        stack = []
+        while len(queue):
+            cur:Expression = queue[0]
+            del queue[0]
+            if cur.sub1 and cur.sub2:
+                stack.append(cur)
+            
+            if cur.sub1:
+                queue.append(cur.sub1)
+            if cur.sub2:
+                queue.append(cur.sub2)
+        
+
+        while len(stack):
+            root:Expression = stack[-1]
+            stack.pop()
+            ''' check whether `cur` is a root
+                that has a imme could be merged
+
+                cur->sub->sub and cur->sub is imme
+
+                        <<
+                        /\
+                      +    4
+                     / \
+                  rax   2
+                
+                to:
+                        +
+                      /  \
+                    <<    32
+                   /  \
+                  rax  4
+            '''
+
+            
+            fa_const, fa_bin, const_is2 = None, None, False
+            if root.sub1.is_const() and root.sub2.hasChild and root.sub2.sub1 and root.sub2.sub2:
+                fa_const = root.sub1
+                fa_bin = root.sub2
+            
+            if root.sub2.is_const() and root.sub1.hasChild and root.sub1.sub1 and root.sub1.sub2:
+                fa_const = root.sub2
+                const_is2 = True
+                fa_bin = root.sub1
+            
+            if not fa_const:
+                continue
+            
+            son_const, son_reg = None, None
+            if fa_bin.sub1.is_const() and fa_bin.sub2.is_reg():
+                son_const, son_reg = fa_bin.sub1, fa_bin.sub2
+            
+            if fa_bin.sub1.is_reg() and fa_bin.sub2.is_const():
+                son_const, son_reg = fa_bin.sub2, fa_bin.sub1
+
+            if not son_const:
+                continue
+
+            if not (fa_bin.op==DW_OP_plus or fa_bin.op==DW_OP_minus or fa_bin.op==DW_OP_plus_uconst):
+                continue
+
+            fa_const.calculate(fa_bin.op, )
+            
+
+
+
+
+
+
+
+        
+
+    def evaluate(self, init_regs:dict) -> Expression:
+        
+        if self.hasChild:
+            self.evaluate(self.sub1)
+            if self.sub2:
+                self.evaluate(self.sub2)
+            
+            self.calculate(self.op, self.sub2)
+            del self.sub1
+            if self.sub2:
+                del self.sub2
+        
+        if self.regs:
+            for reg in self.regs:
+                if reg in init_regs:
+                    self.offset += init_regs[reg]
+                    self.regs.pop(reg)
+        
+
+
+    def calculate(self, op:int, exp:Expression = None):
+        ''' for imme, calculate their values
+            self is op1, exp is op2
+        '''
+        assert(self.is_const())
+        if op == DW_OP_abs:
+            self.offset = abs(self.offset)
+        
+        elif op == DW_OP_neg:
+            self.offset = -self.offset
+        
+        elif op == DW_OP_not:
+            self.offset = ~self.offset
+        
+        elif op == DW_OP_and:
+            self.offset = self.offset & exp.offset
+        
+        elif op == DW_OP_or:
+            self.offset = self.offset | exp.offset
+        
+        elif op == DW_OP_xor:
+            self.offset = self.offset ^ exp.offset
+
+        elif op == DW_OP_div:
+            self.offset = exp.offset / self.offset
+        
+        elif op == DW_OP_mod:
+            self.offset = exp.offset % self.offset
+
+        elif op == DW_OP_minus:
+            self.offset = exp.offset - self.offset
+        
+        elif op == DW_OP_plus or op == DW_OP_plus_uconst:
+            self.offset += exp.offset
+
+        elif op == DW_OP_mul:
+            self.offset *= exp.offset
+        
+        elif op == DW_OP_shl:
+            self.offset = self.exp << self.offset
+        
+        elif op == DW_OP_shr:
+            ''' 
+            '''
+            self.offset = self.exp >> self.offset
+
+        elif op == DW_OP_shra:
+            self.offset = self.exp >> self.offset
+
+        elif op == DW_OP_eq:
+            self.offset = 1 if self.offset == exp.offset else 0
+        
+        elif op == DW_OP_ge:
+            self.offset = 1 if exp.offset >= self.offset else 0
+        
+        elif op == DW_OP_gt:
+            self.offset = 1 if exp.offset > self.offset else 0
+        
+        elif op == DW_OP_le:
+            self.offset = 1 if exp.offset <= self.offset else 0
+
+        elif op == DW_OP_lt:
+            self.offset = 1 if exp.offset < self.offset else 0
+
+        elif op == DW_OP_ne:
+            self.offset = 1 if exp.offset != self.offset else 0
+
+
 
     def match(self, ins:Instruction) -> int:
         '''
@@ -288,6 +564,17 @@ class VarMgr:
             res = set([var for var in res if var.decl_file == decl_file])
         
         return res
+    
+    def getVar(self, startpc:int, endpc:int, varName:str) -> AddressExp:
+        puppet = AddressExp()
+        puppet.startpc = startpc
+        puppet.endpc = (1<<64)
+        start_ind = bisect_right(self.vars, puppet)
+        for i in range(start_ind-1, 0, -1):
+            if self.vars[i].endpc == endpc and self.vars[i].name == varName:
+                return self.vars[i]
+        return None
+
 
 
 if __name__ == "__main__":
@@ -469,7 +756,7 @@ if __name__ == "__main__":
                         continue
                     if iced_dwarf_regMap[reg] in rel_regs:
                         overwriteCnt += 1
-                        # print(f"{dwarf_name[iced_dwarf_regMap[reg]]} modified {var.startpc:X} {var.endpc:X} by {ins.__str__()}")
+                        # print(f"{dwarf_reg_names[iced_dwarf_regMap[reg]]} modified {var.startpc:X} {var.endpc:X} by {ins.__str__()}")
 
 
                 target = isBranch(ins)

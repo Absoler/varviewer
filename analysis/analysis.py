@@ -2,9 +2,12 @@
 import angr, pyvex
 import sys
 import copy
-from processVEX import *
+from dwarf_vex_map import *
+from dwarf_iced_map import *
+from variable import load
+from z3 import *
 
-def traverse(p:angr.Project, cfg:angr.analyses.cfg.cfg_fast.CFGFast, processIRSB = None, file=sys.stdout):
+def traverse(p:angr.Project, cfg:angr.analyses.cfg.cfg_fast.CFGFast, processIRSB = None, file=sys.stdout, opt_level = 1):
     vis = set()
     cfg = p.analyses.CFGFast()
     indegree = dict(cfg.graph.in_degree)
@@ -20,7 +23,7 @@ def traverse(p:angr.Project, cfg:angr.analyses.cfg.cfg_fast.CFGFast, processIRSB
             if processIRSB:
                 processIRSB(node)
             else:
-                blk = p.factory.block(node.addr, opt_level=1)    # opt_level default set to 1
+                blk = p.factory.block(node.addr, opt_level=opt_level)    # opt_level default set to 1
                 print(blk.vex._pp_str(), file=file)
         print(f"successors: {node.successors_and_jumpkinds()}", file=file)
         print(file=file)
@@ -95,7 +98,7 @@ class ResultSet:
         for i in range(16):
             if not self.reg_facts[i]:
                 continue
-            s += register_names[i*8+16] + ":\n" 
+            s += vex_reg_names[i*8+16] + ":\n" 
             for loc in self.reg_facts[i]:
                 s += loc.node.__str__() + " " + loc.node.block.vex.statements[loc.ind].__str__() + "\n"
             s += '\n'
@@ -109,20 +112,20 @@ out_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, ResultSet] = {}
 
 class definition:
     def __init__(self) -> None:
-        self.block_to_defs = {}
+        self.blockAddr_to_defs:dict[int, dict] = {}
     
     def setBlock(self, irsb:pyvex.IRSB):
         to_defs = {}
         for i, ir in enumerate(irsb.statements):
             if isinstance(ir, pyvex.stmt.WrTmp):
                 to_defs[ir.tmp] = ir.data
-        self.block_to_defs[irsb] = to_defs
+        self.blockAddr_to_defs[irsb.addr] = to_defs
 
     def getDef(self, irsb:pyvex.IRSB, tmp:int) -> pyvex.IRExpr:
-        if irsb not in self.block_to_defs:
-            print(f"defs in {irsb} not recorded", file=sys.stderr)
+        if irsb.addr not in self.blockAddr_to_defs:
+            print(f"defs in {irsb.addr} not recorded", file=sys.stderr)
             return None
-        return self.block_to_defs[irsb][tmp]
+        return self.blockAddr_to_defs[irsb.addr][tmp]
 
 def_mgr = definition()
 
@@ -202,14 +205,7 @@ def processIRSB(node:angr.knowledge_plugins.cfg.cfg_node.CFGNode):
 
 
 
-from parse_mapping import AddressExp
-
-class WrapVex:
-    def __init__(self, ir) -> None:
-        self.ir:pyvex.IRExpr = ir
-        self.offset:int = 0
-        self.regs:dict = {}
-
+from variable import AddressExp
 
 
 def is_simple_expr(expr:pyvex.expr.IRExpr, curNode) -> bool:
@@ -339,6 +335,161 @@ def match(irExpr:pyvex.IRExpr, addrExp:AddressExp, curNode:angr.knowledge_plugin
     
     return isMatch
 
+def get_z3_expr_from_vex(irExpr:pyvex.IRExpr, curNode:angr.knowledge_plugins.cfg.cfg_node.CFGNode):
+    ''' stop at the first register
+    '''
+    if isinstance(irExpr, pyvex.expr.Binop):
+        
+        if irExpr.op.startswith("Iop_Add"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) + get_z3_expr_from_vex(irExpr.args[1], curNode)
+        
+        elif irExpr.op.startswith("Iop_Sub"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) - get_z3_expr_from_vex(irExpr.args[1], curNode)
+        
+        elif irExpr.op.startswith("Iop_DivMod"):
+            e1:BitVecRef = get_z3_expr_from_vex(irExpr.args[0], curNode)
+            e2:BitVecRef = get_z3_expr_from_vex(irExpr.args[1], curNode)
+            if e2.size() < e1.size():
+                e2 = Concat(BitVecVal(0, e1.size()-e2.size()), e2)
+            return e1 % e2
+        
+        elif irExpr.op.startswith("Iop_Div"):
+            e1:BitVecRef = get_z3_expr_from_vex(irExpr.args[0], curNode)
+            e2:BitVecRef = get_z3_expr_from_vex(irExpr.args[1], curNode)
+            if e2.size() < e1.size():
+                e2 = Concat(BitVecVal(0, e1.size()-e2.size()), e2)
+            return e1 / e2
+        
+        elif irExpr.op.startswith("Iop_Mul"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) * get_z3_expr_from_vex(irExpr.args[1], curNode)
+
+        elif irExpr.op.startswith("Iop_And"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) & get_z3_expr_from_vex(irExpr.args[1], curNode)
+        
+        elif irExpr.op.startswith("Iop_Or"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) | get_z3_expr_from_vex(irExpr.args[1], curNode)
+        
+        elif irExpr.op.startswith("Iop_Xor"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) ^ get_z3_expr_from_vex(irExpr.args[1], curNode)
+        
+        elif irExpr.op.startswith("Iop_Shl"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) << get_z3_expr_from_vex(irExpr.args[1], curNode)
+        
+        elif irExpr.op.startswith("Iop_Shr"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) >> get_z3_expr_from_vex(irExpr.args[1], curNode)
+        
+        elif irExpr.op.startswith("Iop_Sar"):
+            return get_z3_expr_from_vex(irExpr.args[0], curNode) >> get_z3_expr_from_vex(irExpr.args[1], curNode)
+        
+        elif irExpr.op.startswith("Iop_CmpEQ"):
+            exp1, exp2 = get_z3_expr_from_vex(irExpr.args[0], curNode), get_z3_expr_from_vex(irExpr.args[1], curNode)
+            return If(exp1==exp2, BitVecVal(1, 64), BitVecVal(0, 64))
+        
+        elif irExpr.op.startswith("Iop_CmpGE"):
+            exp1, exp2 = get_z3_expr_from_vex(irExpr.args[0], curNode), get_z3_expr_from_vex(irExpr.args[1], curNode)
+            return If(exp1>=exp2, BitVecVal(1, 64), BitVecVal(0, 64))
+        
+        elif irExpr.op.startswith("Iop_CmpGT"):
+            exp1, exp2 = get_z3_expr_from_vex(irExpr.args[0], curNode), get_z3_expr_from_vex(irExpr.args[1], curNode)
+            return If(exp1>exp2, BitVecVal(1, 64), BitVecVal(0, 64))
+        
+        elif irExpr.op.startswith("Iop_CmpLE"):
+            exp1, exp2 = get_z3_expr_from_vex(irExpr.args[0], curNode), get_z3_expr_from_vex(irExpr.args[1], curNode)
+            return If(exp1<=exp2, BitVecVal(1, 64), BitVecVal(0, 64))
+        
+        elif irExpr.op.startswith("Iop_CmpLT"):
+            exp1, exp2 = get_z3_expr_from_vex(irExpr.args[0], curNode), get_z3_expr_from_vex(irExpr.args[1], curNode)
+            return If(exp1<exp2, BitVecVal(1, 64), BitVecVal(0, 64))
+        
+        elif irExpr.op.startswith("Iop_CmpNE"):
+            exp1, exp2 = get_z3_expr_from_vex(irExpr.args[0], curNode), get_z3_expr_from_vex(irExpr.args[1], curNode)
+            return If(exp1!=exp2, BitVecVal(1, 64), BitVecVal(0, 64))
+        
+        elif pyvex.expr.cast_signature_re.match(irExpr.op):
+            ''' concat args[0] and args[1] to a larger value
+            '''
+            dst_type, src_types = pyvex.expr.cast_signature(irExpr.op)
+            dst_size, src_size = int(dst_type[5:]), int(src_types[0][5:])
+
+            high_part = Extract(src_size-1, 0, get_z3_expr_from_vex(irExpr.args[0], curNode))
+            low_part = Extract(src_size-1, 0, get_z3_expr_from_vex(irExpr.args[1], curNode))
+            return Concat(high_part, low_part)
+
+        else:
+            assert(0)
+
+    elif isinstance(irExpr, pyvex.expr.Unop):
+        if irExpr.op.startswith("Iop_Abs"):
+            return Abs(get_z3_expr_from_vex(irExpr.args[0], curNode))
+        
+        elif irExpr.op.startswith("Iop_Neg"):
+            return -get_z3_expr_from_vex(irExpr.args[0], curNode)
+        
+        elif irExpr.op.startswith("Iop_Not"):
+            return ~get_z3_expr_from_vex(irExpr.args[0], curNode)
+        
+        elif pyvex.expr.cast_signature_re.match(irExpr.op):
+            ''' convert operator
+            '''
+            dst_type, src_types = pyvex.expr.cast_signature(irExpr.op)
+            dst_size, src_size = int(dst_type[5:]), int(src_types[0][5:])
+            old_expr:BitVecRef = get_z3_expr_from_vex(irExpr.args[0], curNode)
+            assert(src_size==old_expr.size())
+            if dst_size > src_size:
+                return Concat(BitVecVal(0, dst_size-src_size), old_expr)
+            else:
+                return Extract(dst_size-1, 0, old_expr)
+            
+        else:
+            assert(0)
+    
+    elif isinstance(irExpr, pyvex.expr.RdTmp):
+        # temp variable
+        define = def_mgr.getDef(curNode.block.vex, irExpr.tmp)
+        return get_z3_expr_from_vex(define, curNode)
+    
+    elif isinstance(irExpr, pyvex.expr.Load):
+        ''' memory
+
+        hope addrExp is just a `mem`
+        '''
+        
+        return get_z3_expr_from_vex(irExpr.addr)
+
+    elif isinstance(irExpr, pyvex.expr.Const):
+        ''' const
+        '''
+        return BitVecVal(irExpr.con.value, irExpr.con.size)
+
+    elif isinstance(irExpr, pyvex.expr.ITE):
+        ''' selection based on cmp result, similar to `phi`
+        '''
+        cond = get_z3_expr_from_vex(irExpr.cond, curNode)
+        iftrue = get_z3_expr_from_vex(irExpr.iftrue, curNode)
+        iffalse = get_z3_expr_from_vex(irExpr.iffalse, curNode)
+        return If(cond, iftrue, iffalse)
+    
+
+    elif isinstance(irExpr, pyvex.expr.Get):
+        ''' register
+        '''
+        reg_name = vex_reg_names[irExpr.offset]
+        size = int(irExpr.type[5:])
+        return BitVec(reg_name, size)
+
+
+    
+    print(irExpr)
+    return None
+    
+
+def extract_regs_for_dwarf(z3Expr:BitVecRef) -> list[BitVecRef]:
+    ''' get all register `BitVecRef`
+    '''
+    res = [z3Expr.decl().name()] if z3Expr.decl().name() in dwarf_reg_names else []
+    for child in z3Expr.children():
+        res.extend(extract_regs_for_dwarf(child))
+    return res
 
 if __name__ == "__main__":   
     proj = angr.Project(sys.argv[1], load_options={'auto_load_libs' : False})
