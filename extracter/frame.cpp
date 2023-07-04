@@ -6,10 +6,10 @@
 #include <memory>
 #include <vector>
 
-std::vector<AddressExp> cfa_values;
+std::vector<Expression> cfa_values;
 std::vector<Dwarf_Addr> cfa_pcs;
 
-int testFDE(Dwarf_Debug dbg, bool print){
+void testFDE(Dwarf_Debug dbg, bool print){
     Dwarf_Cie *cie_data;
     Dwarf_Signed cie_count = 0;
     Dwarf_Fde *fde_data = 0;
@@ -60,8 +60,15 @@ int testFDE(Dwarf_Debug dbg, bool print){
                 continue;
             }
             switch (value_type) {
+                /*
+                    DW_EXPR_OFFSET and DW_EXPR_EXPRESSION describe the address of the previous value,
+                    however, what we need is the address (frame base) instead of its value, so, we can
+                    omit the other two,
+
+                    !when need consideration of `DW_OP_entry_value`, we need take care of the other two
+                */
                 case DW_EXPR_OFFSET:{
-                    AddressExp off;
+                    Expression off;
                     off.offset = offset;
                     off.reg_scale[reg] += 1;
                     off.sign = true;
@@ -73,10 +80,10 @@ int testFDE(Dwarf_Debug dbg, bool print){
                     break;
                 }
                 case DW_EXPR_VAL_OFFSET:{
-                    AddressExp val_offset;
+                    fprintf(stderr, "shouldn't meet val_offset cfa\n");
+                    Expression val_offset;
                     val_offset.offset = offset;
                     val_offset.reg_scale[reg] += 1;
-                    val_offset.type = VALUE;
                     val_offset.sign = true;
 
                     cfa_values.push_back(val_offset);
@@ -86,7 +93,9 @@ int testFDE(Dwarf_Debug dbg, bool print){
                     break;
                 }
                 case DW_EXPR_EXPRESSION:{
-                    AddressExp expression = evaluator.parse_dwarf_block(block.bl_data, block.bl_len);
+                    Expression expression;
+                    AddressExp block_addrExp = evaluator.parse_dwarf_block(block.bl_data, block.bl_len);
+                    expression.setExpFrom(block_addrExp);
 
                     cfa_values.push_back(expression);
                     cfa_pcs.push_back(row_pc);
@@ -95,8 +104,10 @@ int testFDE(Dwarf_Debug dbg, bool print){
                     break;
                 }
                 case DW_EXPR_VAL_EXPRESSION:{
-                    AddressExp val_expression = evaluator.parse_dwarf_block(block.bl_data, block.bl_len);
-                    val_expression.type = VALUE;
+                    fprintf(stderr, "shouldn't meet val_expression cfa\n");
+                    Expression val_expression;
+                    AddressExp block_addrExp = evaluator.parse_dwarf_block(block.bl_data, block.bl_len);
+                    val_expression.setExpFrom(block_addrExp);
 
                     cfa_values.push_back(val_expression);
                     cfa_pcs.push_back(row_pc);

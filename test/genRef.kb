@@ -7,3 +7,5 @@ fi
 gcc-12.1 $1.c -g $opt -o $1
 objdump -dl $1 > $1.dis
 objdump -Wi $1 > $1.info
+objdump -Wf $1 > $1.frame
+objdump -WF $1 > $1.frame.interp

@@ -21,6 +21,8 @@ json createJsonforExpression(const Expression &exp){
             "sub1" : <Expression>
             "sub2" : <Expression>
             "op" : <Dwarf_Unsigned>
+
+            "isCFA" : <Bool>
         }
     */
     json res;
@@ -53,6 +55,8 @@ json createJsonforExpression(const Expression &exp){
         }
     }
 
+    res["isCFA"] = exp.isCFA;
+
     return res;
 }
 
@@ -70,7 +74,7 @@ json createJsonforAddressExp(const AddressExp &addrexp){
 
             "needCFA" : <bool>
             "cfa_values" : [
-                <AddrExp>
+                <Expression>
             ]
             "cfa_pcs" : [
                 <Dwarf_Addr>
@@ -89,7 +93,7 @@ json createJsonforAddressExp(const AddressExp &addrexp){
     if(addrexp.needCFA){
         res["cfa_values"] = std::vector<json>();
         for(auto cfa_value:addrexp.cfa_values){
-            res["cfa_values"].push_back(createJsonforAddressExp(cfa_value));
+            res["cfa_values"].push_back(createJsonforExpression(cfa_value));
         }
         res["cfa_pcs"] = addrexp.cfa_pcs;
     }

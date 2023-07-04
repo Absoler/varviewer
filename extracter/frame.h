@@ -6,8 +6,8 @@
 #include "Evaluator.h"
 #include "Expression.h"
 
-extern std::vector<AddressExp> cfa_values;
+extern std::vector<Expression> cfa_values;
 extern std::vector<Dwarf_Addr> cfa_pcs;
 
-int testFDE(Dwarf_Debug dbg, bool print=false);
+void testFDE(Dwarf_Debug dbg, bool print=false);
 

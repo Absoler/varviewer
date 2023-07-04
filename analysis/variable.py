@@ -26,6 +26,8 @@ class Expression:
         "sub1" : <Expression>
         "sub2" : <Expression>
         "op" : <Dwarf_Unsigned>
+
+        "isCFA" : <Bool>
     }
     '''
     def __init__(self, jsonExp:dict = {}) -> None:
@@ -38,7 +40,6 @@ class Expression:
             self.mem:Expression = Expression(jsonExp=jsonExp["mem"]) if "mem" in jsonExp else None
             # self.valid:bool = jsonExp["valid"] # only record valid one
             self.empty:bool = jsonExp["empty"]
-            self.sign:bool = jsonExp["sign"]
 
             self.hasChild:bool = jsonExp["hasChild"]
             if self.hasChild:
@@ -52,6 +53,7 @@ class Expression:
             else:
                 self.sub2 = None
             self.op:int = jsonExp["op"] if self.hasChild else None
+            self.isCFA:bool = jsonExp["isCFA"]
             self.father = None
 
         else:
@@ -61,15 +63,29 @@ class Expression:
             self.mem:Expression = None
             # self.valid:bool = True
             self.empty:bool = False
-            self.sign:bool = False
 
             self.hasChild:bool = False
             self.sub1 = None
             self.sub2 = None
             self.op = None
-            self.father = None
-        
 
+            self.isCFA:bool = False
+            self.father = None
+    
+    def setExprFrom(self, exp:Expression):
+        self.sign = exp.sign
+        self.offset = exp.offset
+        self.regs = copy.copy(exp.regs)
+        self.mem = exp.mem
+        
+        self.hasChild = exp.hasChild
+        self.sub1 = exp.sub1
+        self.sub2 = exp.sub2
+        self.op = exp.op
+
+        self.isCFA = exp.isCFA
+        self.father = exp.father
+        
     def add(self, other):
         ''' only valid if simple expression
         '''
@@ -97,6 +113,20 @@ class Expression:
                 res.regs[reg] -= other.regs[reg]
             else:
                 res.regs[reg] = -other.regs[reg]
+
+    def getAllchildren(self) -> list[Expression]:
+        res = []
+        if self.mem:
+            res.extend([self.mem] + self.mem.getAllchildren())
+        
+        if self.sub1:
+            res.extend([self.sub1] + self.sub1.getAllchildren())
+        
+        if self.sub2:
+            res.extend([self.sub2] + self.sub2.getAllchildren())
+
+        return res
+
 
     def is_const(self):
         return self.regs == None and self.mem == None and not self.empty and self.valid
@@ -221,7 +251,7 @@ class AddressExp(Expression):
             
             "needCFA" : <bool>
             "cfa_values" : [
-                <AddrExp>
+                <Expression>
             ]
             "cfa_pcs" : [
                 <Dwarf_Addr>
@@ -239,6 +269,10 @@ class AddressExp(Expression):
             self.piece_start = jsonAddrExp["piece_start"]
             self.piece_size = jsonAddrExp["piece_size"]
 
+            self.needCFA = jsonAddrExp["needCFA"]
+            self.cfa_pcs:list[int] = jsonAddrExp["cfa_pcs"] if self.needCFA else []
+            self.cfa_values:list[AddressExp] = jsonAddrExp["cfa_values"] if self.needCFA else []
+
             self.name:str = ""
             self.decl_file:str = ""
         else:
@@ -249,6 +283,10 @@ class AddressExp(Expression):
             self.endpc = 0
             self.piece_start = 0
             self.piece_size = 0
+
+            self.needCFA = False
+            self.cfa_pcs:list[int] = []
+            self.cfa_values:list[AddressExp] = []
 
             self.name:str = ""
             self.decl_file:str = ""
@@ -268,81 +306,18 @@ class AddressExp(Expression):
         res = res or self.regs == other.regs
 
 
-    def move_imme_out_pass(self):
-        ''' for a complex expression, move the inside
-            imme value outside, such as
 
-                (rax+2)<<4 -> (rax<<4) + 16
+    def restoreCFA(self, addr:int):
+        ''' cfa is `reg + offset` format,
         '''
-        queue = [self]
-        stack = []
-        while len(queue):
-            cur:Expression = queue[0]
-            del queue[0]
-            if cur.sub1 and cur.sub2:
-                stack.append(cur)
-            
-            if cur.sub1:
-                queue.append(cur.sub1)
-            if cur.sub2:
-                queue.append(cur.sub2)
-        
-
-        while len(stack):
-            root:Expression = stack[-1]
-            stack.pop()
-            ''' check whether `cur` is a root
-                that has a imme could be merged
-
-                cur->sub->sub and cur->sub is imme
-
-                        <<
-                        /\
-                      +    4
-                     / \
-                  rax   2
-                
-                to:
-                        +
-                      /  \
-                    <<    32
-                   /  \
-                  rax  4
-            '''
-
-            
-            fa_const, fa_bin, const_is2 = None, None, False
-            if root.sub1.is_const() and root.sub2.hasChild and root.sub2.sub1 and root.sub2.sub2:
-                fa_const = root.sub1
-                fa_bin = root.sub2
-            
-            if root.sub2.is_const() and root.sub1.hasChild and root.sub1.sub1 and root.sub1.sub2:
-                fa_const = root.sub2
-                const_is2 = True
-                fa_bin = root.sub1
-            
-            if not fa_const:
-                continue
-            
-            son_const, son_reg = None, None
-            if fa_bin.sub1.is_const() and fa_bin.sub2.is_reg():
-                son_const, son_reg = fa_bin.sub1, fa_bin.sub2
-            
-            if fa_bin.sub1.is_reg() and fa_bin.sub2.is_const():
-                son_const, son_reg = fa_bin.sub2, fa_bin.sub1
-
-            if not son_const:
-                continue
-
-            if not (fa_bin.op==DW_OP_plus or fa_bin.op==DW_OP_minus or fa_bin.op==DW_OP_plus_uconst):
-                continue
-
-            fa_const.calculate(fa_bin.op, )
-            
-
-
-
-
+        children:list[Expression] = self.getAllchildren()
+        ind = bisect_right(self.cfa_pcs, addr, 0, len(self.cfa_pcs))
+        cfa:Expression = self.cfa_values[ind]
+        for child in children:
+            if child.isCFA:
+                out_offset = child.offset
+                child.setExprFrom(cfa)
+                child.offset += out_offset
 
 
 
@@ -434,66 +409,6 @@ class AddressExp(Expression):
 
         elif op == DW_OP_ne:
             self.offset = 1 if exp.offset != self.offset else 0
-
-
-
-    def match(self, ins:Instruction) -> int:
-        '''
-            match type:
-            0. not match
-            1. address matched
-            2. address reg matched
-            3. reg match
-            4. constant match
-        '''
-        
-        scale_index, scale_base = ins.memory_index_scale, 1
-        
-        reg_index = iced_dwarf_regMap[ins.memory_index] if ins.memory_index != Register.NONE else -1
-        reg_base = iced_dwarf_regMap[ins.memory_base] if ins.memory_base != Register.NONE and ins.memory_base != Register.RIP else -1
-        
-        offset = ins.memory_displacement
-
-        if self.type == 1:
-            return 3 if self.reg == reg_index or self.reg == reg_base else 0
-        
-        elif self.type == 2:
-            return 4 if self.offset == offset else 0
-        
-        else:
-            
-            
-            
-            # reg check
-            if type(self.regs) == dict:
-                reg_match = True
-                if reg_index != -1 and (reg_index not in self.regs[reg_index] or self.regs[reg_index] != scale_index):
-                    reg_match = False
-                
-                if reg_base != -1 and (reg_base not in self.regs[reg_base] or self.regs[reg_base] != scale_base):
-                        reg_match = False
-
-                for reg in self.regs:
-                    if reg != reg_index and reg != reg_base:
-                        reg_match = False
-                    elif reg == reg_index and self.regs[reg] != scale_index:
-                        reg_match = False
-                    elif reg == reg_base and self.regs[reg] != scale_base:
-                        reg_match = False
-            
-            else:
-                reg_match = False
-            
-            offset_match = offset == self.offset
-
-            if reg_match and offset_match:
-                return 1
-            elif reg_match:
-                return 2
-            else:
-                return 0
-
-
 
 
 

@@ -576,6 +576,11 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form){
             }
 
             else if (op==DW_OP_fbreg){
+                /*
+                    an offset + current frame base, and current frame base 
+                    usually use a `DW_OP_call_frame_cfa` op, which return
+                    the cfa value
+                */
                 Expression cfa = Expression::createCFA();
                 cfa.offset = op1;
                 cfa.sign = true;

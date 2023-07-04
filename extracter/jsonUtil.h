@@ -36,7 +36,7 @@ json createJsonforAddress(const Address& addr);
         
         "needCFA" : <bool>
         "cfa_values" : [
-            <AddrExp>
+            <Expression>
         ]
         "cfa_pcs" : [
             <Dwarf_Addr>
@@ -60,6 +60,8 @@ json createJsonforAddressExp(const AddressExp& addrexp);
         "sub1" : <Expression>
         "sub2" : <Expression>
         "op" : <Dwarf_Unsigned>
+
+        "isCFA" : <Bool>
     }
 */
 json createJsonforExpression(const Expression& exp);
