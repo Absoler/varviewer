@@ -583,7 +583,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form){
                 */
                 Expression cfa = Expression::createCFA();
                 cfa.offset = op1;
-                cfa.sign = true;
+                
                 stk.push(cfa);
                 /*
                     record useful cfa values in addrExp

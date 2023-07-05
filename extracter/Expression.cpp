@@ -22,6 +22,7 @@ Expression Expression::createEmpty(){
 Expression Expression::createCFA(){
     Expression res;
     res.isCFA = true;
+    res.sign = true;
     return res;
 }
 
@@ -355,6 +356,7 @@ void Expression::setExpFrom(const Expression &exp){
     memcpy(reg_scale, exp.reg_scale, sizeof(reg_scale));
     offset = exp.offset;
     mem = exp.mem;
+    sign = exp.sign;
 
     hasChild = exp.hasChild;
     sub1 = exp.sub1;

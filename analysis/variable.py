@@ -33,7 +33,7 @@ class Expression:
     def __init__(self, jsonExp:dict = {}) -> None:
         if jsonExp:
             self.sign:bool = jsonExp["sign"]
-            self.offset:int = jsonExp["offset"] if not self.sign else ctypes.c_int64(jsonExp["offset"])
+            self.offset:int = jsonExp["offset"] if not self.sign else ctypes.c_int64(jsonExp["offset"]).value
             self.regs = jsonExp["regs"]
             if self.regs:
                 self.regs:dict = {int(reg) : self.regs[reg] for reg in self.regs}
@@ -72,7 +72,7 @@ class Expression:
             self.isCFA:bool = False
             self.father = None
     
-    def setExprFrom(self, exp:Expression):
+    def setExprFrom(self, exp):
         self.sign = exp.sign
         self.offset = exp.offset
         self.regs = copy.copy(exp.regs)
@@ -114,16 +114,16 @@ class Expression:
             else:
                 res.regs[reg] = -other.regs[reg]
 
-    def getAllchildren(self) -> list[Expression]:
-        res = []
+    def getAllnodes(self) -> list:
+        res = [self]
         if self.mem:
-            res.extend([self.mem] + self.mem.getAllchildren())
+            res.extend(self.mem.getAllnodes())
         
         if self.sub1:
-            res.extend([self.sub1] + self.sub1.getAllchildren())
+            res.extend(self.sub1.getAllnodes())
         
         if self.sub2:
-            res.extend([self.sub2] + self.sub2.getAllchildren())
+            res.extend(self.sub2.getAllnodes())
 
         return res
 
@@ -310,9 +310,9 @@ class AddressExp(Expression):
     def restoreCFA(self, addr:int):
         ''' cfa is `reg + offset` format,
         '''
-        children:list[Expression] = self.getAllchildren()
-        ind = bisect_right(self.cfa_pcs, addr, 0, len(self.cfa_pcs))
-        cfa:Expression = self.cfa_values[ind]
+        children:list[Expression] = self.getAllnodes()
+        ind = bisect_right(self.cfa_pcs, addr, 0, len(self.cfa_pcs)) - 1
+        cfa:Expression = Expression(self.cfa_values[ind])
         for child in children:
             if child.isCFA:
                 out_offset = child.offset
