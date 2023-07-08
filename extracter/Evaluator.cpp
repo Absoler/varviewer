@@ -428,7 +428,7 @@ AddressExp Evaluator::parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_
     return addrExp;
 }
 
-Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form){
+Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range){
     /*
         only parse DW_FORM_sec_offset and DW_FORM_exprloc now
     */
@@ -491,6 +491,11 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form){
         }else{
             addrExp.startpc = raw_lopc;
             addrExp.endpc = raw_hipc;
+        }
+
+        if(loc_form == DW_FORM_exprloc){
+            addrExp.startpc = range.startpc;
+            addrExp.endpc = range.endpc;
         }
 
         init_stack();

@@ -10,6 +10,7 @@
 #include <vector>
 #include <queue>
 
+#include "ranges.h"
 #include "varLocator.h"
 
 
@@ -27,6 +28,9 @@ bool noTraverse = false;
 
 // important variables
 json allJson = json::array();
+
+// statistic variables
+int varNoLocation = 0;
 
 inline void printindent(int indent){
     for(int _=0;_<indent;++_)
@@ -112,7 +116,7 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name){
     return 0;
 }
 
-int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die){
+int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range range){
     int res;
     Dwarf_Error err;
     Dwarf_Attribute location_attr;
@@ -124,7 +128,7 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die){
 
     Evaluator evaluator;
     evaluator.dbg = dbg;
-    Address addr = evaluator.read_location(location_attr, loc_form);
+    Address addr = evaluator.read_location(location_attr, loc_form, range);
     if(addr.valid == false){
         return 1;
     }
@@ -146,7 +150,6 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die){
     // addr.output();
         json addrJson = createJsonforAddress(addr);
         allJson.push_back(move(addrJson));
-        
         // auto addrStr = addrJson.dump(4);
         // if (oFileStr!="") {
         //     fstream out(oFileStr.c_str(), ios::app);
@@ -351,7 +354,8 @@ int print_raw_location(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc
     return ret;
 }
 
-void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, bool is_info, int indent){
+// pre-order traverse
+void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range range, bool is_info, int indent){
     Dwarf_Error err;
     do{
         const char *tag_name;
@@ -365,6 +369,10 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, bool is_in
                 printindent(indent);
                 printf("%s", tag_name);
 
+            }
+
+            if(tag==DW_TAG_lexical_block){
+                range.setFromDie(fa_die);
             }
 
             if (tag==DW_TAG_variable||tag==DW_TAG_formal_parameter){
@@ -396,8 +404,11 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, bool is_in
                         
                         print_raw_location(dbg, location_attr, form, indent+1);
                     }else{
-                        test_evaluator(dbg, cu_die, fa_die);
+                        test_evaluator(dbg, cu_die, fa_die, range);
                     }
+                }else{
+                    fprintf(stderr, "%s no location\n", var_name);
+                    varNoLocation += 1;
                 }
             }
 
@@ -405,7 +416,7 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, bool is_in
         }
 
         if(dwarf_child(fa_die, &child_die, &err)==DW_DLV_OK){
-            walkDieTree(cu_die, dbg, child_die, is_info, indent+1);
+            walkDieTree(cu_die, dbg, child_die, range, is_info, indent+1);
         }
         
     }while(dwarf_siblingof_b(dbg, fa_die, is_info, &fa_die, &err) == DW_DLV_OK);
@@ -481,7 +492,7 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
-        walkDieTree(cu_die, dbg, cu_die, is_info, 0);
+        walkDieTree(cu_die, dbg, cu_die, Range::createFromDie(cu_die), is_info, 0);
 
         if(isFirstCu){
             isFirstCu = false;
@@ -502,6 +513,10 @@ int main(int argc, char *argv[]) {
         }
         
     }
+
+    // output statistics
+    cout<<"---------------- statistics ----------------"<<endl;
+    cout<<"variable die doesn't have location attribute: " << varNoLocation << endl;
 
     return 0;
 }

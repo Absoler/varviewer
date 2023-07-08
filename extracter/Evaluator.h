@@ -4,6 +4,7 @@
 #include <libdwarf-0/libdwarf.h>
 #include "Address.h"
 #include "Expression.h"
+#include "ranges.h"
 #include <stack>
 
 class Evaluator{
@@ -19,7 +20,7 @@ class Evaluator{
 
     AddressExp parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_length, bool print = false);
 
-    Address read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form);
+    Address read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range);
 
     Dwarf_Die getTypeDie();
 
