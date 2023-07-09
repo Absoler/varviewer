@@ -209,10 +209,10 @@ Expression Expression::bin_op(const Expression &exp1, const Expression &exp2, Dw
             res.reg_scale[i] = (Dwarf_Signed)exp2.reg_scale[i] / divisor;
         }
     }else if(op==DW_OP_minus){
-        //! seems reverse?
-        res.offset -= exp2.offset;
+        
+        res.offset = exp2.offset - res.offset;
         for(int i=0; i<REG_END; ++i){
-            res.reg_scale[i] -= exp2.reg_scale[i];
+            res.reg_scale[i] = exp2.reg_scale[i] - res.reg_scale[i];
         }
     }else if(op==DW_OP_mod){
 
