@@ -373,13 +373,34 @@ def get_z3_expr_from_vex(irExpr:pyvex.IRExpr, curNode:angr.knowledge_plugins.cfg
             return get_z3_expr_from_vex(irExpr.args[0], curNode) ^ get_z3_expr_from_vex(irExpr.args[1], curNode)
         
         elif irExpr.op.startswith("Iop_Shl"):
-            return get_z3_expr_from_vex(irExpr.args[0], curNode) << get_z3_expr_from_vex(irExpr.args[1], curNode)
+            base:BitVecRef = get_z3_expr_from_vex(irExpr.args[0], curNode)
+            index:BitVecRef = get_z3_expr_from_vex(irExpr.args[1], curNode)
+            if index.size() < base.size():
+                if isinstance(index, BitVecNumRef):
+                    index = BitVecVal(index.as_long(), base.size())
+                else:
+                    index = ZeroExt(base.size()-index.size(), index)
+            return base << index
         
         elif irExpr.op.startswith("Iop_Shr"):
-            return get_z3_expr_from_vex(irExpr.args[0], curNode) >> get_z3_expr_from_vex(irExpr.args[1], curNode)
-        
+            base:BitVecRef = get_z3_expr_from_vex(irExpr.args[0], curNode)
+            index:BitVecRef = get_z3_expr_from_vex(irExpr.args[1], curNode)
+            if index.size() < base.size():
+                if isinstance(index, BitVecNumRef):
+                    index = BitVecVal(index.as_long(), base.size())
+                else:
+                    index = ZeroExt(base.size()-index.size(), index)
+            return LShR(base, index)
+
         elif irExpr.op.startswith("Iop_Sar"):
-            return get_z3_expr_from_vex(irExpr.args[0], curNode) >> get_z3_expr_from_vex(irExpr.args[1], curNode)
+            base:BitVecRef = get_z3_expr_from_vex(irExpr.args[0], curNode)
+            index:BitVecRef = get_z3_expr_from_vex(irExpr.args[1], curNode)
+            if index.size() < base.size():
+                if isinstance(index, BitVecNumRef):
+                    index = BitVecVal(index.as_long(), base.size())
+                else:
+                    index = ZeroExt(base.size()-index.size(), index)
+            return If(base<0, (base+1)/(1<<index) - 1, base/(1<<index))
         
         elif irExpr.op.startswith("Iop_CmpEQ"):
             exp1, exp2 = get_z3_expr_from_vex(irExpr.args[0], curNode), get_z3_expr_from_vex(irExpr.args[1], curNode)
@@ -436,7 +457,11 @@ def get_z3_expr_from_vex(irExpr:pyvex.IRExpr, curNode:angr.knowledge_plugins.cfg
             old_expr:BitVecRef = get_z3_expr_from_vex(irExpr.args[0], curNode)
             assert(src_size==old_expr.size())
             if dst_size > src_size:
-                return Concat(BitVecVal(0, dst_size-src_size), old_expr)
+                if "S" in irExpr.op:
+                    return SignExt(dst_size-src_size, old_expr)
+                else:
+                    # hope "U" in op
+                    return ZeroExt(dst_size-src_size, old_expr)
             else:
                 return Extract(dst_size-1, 0, old_expr)
             
@@ -454,7 +479,7 @@ def get_z3_expr_from_vex(irExpr:pyvex.IRExpr, curNode:angr.knowledge_plugins.cfg
         hope addrExp is just a `mem`
         '''
         
-        return get_z3_expr_from_vex(irExpr.addr)
+        return load(get_z3_expr_from_vex(irExpr.addr, curNode))
 
     elif isinstance(irExpr, pyvex.expr.Const):
         ''' const
@@ -472,6 +497,7 @@ def get_z3_expr_from_vex(irExpr:pyvex.IRExpr, curNode:angr.knowledge_plugins.cfg
 
     elif isinstance(irExpr, pyvex.expr.Get):
         ''' register
+            we only use 64-bit version names
         '''
         reg_name = vex_reg_names[irExpr.offset]
         size = int(irExpr.type[5:])
@@ -483,13 +509,45 @@ def get_z3_expr_from_vex(irExpr:pyvex.IRExpr, curNode:angr.knowledge_plugins.cfg
     return None
     
 
-def extract_regs_for_dwarf(z3Expr:BitVecRef) -> list[BitVecRef]:
-    ''' get all register `BitVecRef`
+def isReg(exp:BitVecRef) -> bool:
+    return exp.decl().name() in vex_reg_size_codes
+
+def extract_regs_from_z3(z3Expr:BitVecRef) -> list[BitVecRef]:
+    ''' get all register names
     '''
-    res = [z3Expr.decl().name()] if z3Expr.decl().name() in dwarf_reg_names else []
+    res = [z3Expr] if isReg(z3Expr) else []
     for child in z3Expr.children():
-        res.extend(extract_regs_for_dwarf(child))
+        res.extend(extract_regs_from_z3(child))
     return res
+
+def is_regs_match(exp1:BitVecRef, exp2:BitVecRef):
+    ''' 
+    '''
+    return True
+
+def guess_reg_type(z3Expr:BitVecRef) -> dict[str, int]:
+    ''' if reg is converted to small
+    '''
+    
+    children = z3Expr.children()
+    if len(children) == 0:
+        return {}
+    
+    res = {}
+    isExtract =  z3Expr.decl().name() == "extract"
+    for child in children:
+        if isExtract and isReg(child):
+            r, l = z3Expr.params()
+            res[child.decl().name()] = r-l+1
+        res.update(guess_reg_type(child))
+    
+    return res
+    
+
+def cond_extract(reg:BitVecRef, _size_num:int):
+    size = (1<<_size_num)
+    # return And(reg<BitVecVal(size, 64), reg>=BitVecVal(0, 64))
+    return ZeroExt(64-_size_num, Extract(_size_num-1, 0, reg)) == reg
 
 if __name__ == "__main__":   
     proj = angr.Project(sys.argv[1], load_options={'auto_load_libs' : False})

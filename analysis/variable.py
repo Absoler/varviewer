@@ -159,7 +159,12 @@ class Expression:
                 return self.sub1.get_Z3_expr() ^ self.sub2.get_Z3_expr()
             
             elif self.op == DW_OP_div:
-                return self.sub2.get_Z3_expr() / self.sub1.get_Z3_expr()
+                dividend = self.sub2.get_Z3_expr()
+                divisor = self.sub1.get_Z3_expr()
+                # integer signed division
+                return If( And(dividend>0, divisor<0), (dividend-1)/divisor-1,
+                          If(And(dividend<0, divisor>0), (dividend+1)/divisor-1,
+                             dividend/divisor)) 
             
             elif self.op == DW_OP_mod:
                 return self.sub2.get_Z3_expr() % self.sub1.get_Z3_expr()
@@ -179,10 +184,10 @@ class Expression:
             elif self.op == DW_OP_shr:
                 ''' 
                 '''
-                return self.sub2.get_Z3_expr() >> self.sub1.get_Z3_expr()
+                return LShR(self.sub2.get_Z3_expr(), self.sub1.get_Z3_expr())
 
             elif self.op == DW_OP_shra:
-                return self.sub2.get_Z3_expr() << self.sub1.get_Z3_expr()
+                return self.sub2.get_Z3_expr() >> self.sub1.get_Z3_expr()
 
             elif self.op == DW_OP_eq:
                 exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
@@ -216,7 +221,10 @@ class Expression:
         res = BitVecVal(self.offset, 64)
         if self.regs:
             for reg in self.regs:
-                res = res + self.regs[reg] * BitVec(dwarf_reg_names[reg], 64)
+                if self.regs[reg] < 0:
+                    res = res - (-self.regs[reg]) * BitVec(dwarf_reg_names[reg], 64)
+                else:
+                    res = res + self.regs[reg] * BitVec(dwarf_reg_names[reg], 64)
 
         return res
             

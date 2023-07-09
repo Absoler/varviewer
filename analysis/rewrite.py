@@ -86,9 +86,9 @@ if __name__ == "__main__":
     assembly_code = construct(insts, startpc, endpc)
     print(assembly_code)
 
-    temp_name = "my_assembly"
-    with open(temp_name + ".S", "w") as as_file:
-        as_file.write(assembly_code)
+    temp_name = "piece"
+    with open(temp_name + ".S", "w") as piece_file:
+        piece_file.write(assembly_code)
     ret = os.system(f"as {temp_name}.S -o {temp_name}.o && ld {temp_name}.o -Ttext 0 -o {temp_name}")
     if ret != 0:
         file.close()
