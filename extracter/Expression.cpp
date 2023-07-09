@@ -11,7 +11,7 @@ using namespace std;
 
 /* expression compression may cause problem to match with vex ir
 */
-bool no_compress = false;
+bool no_compress = true;
 
 Expression Expression::createEmpty(){
     Expression res;
