@@ -427,7 +427,7 @@ class VarMgr:
     
     def __init__(self) -> None:
         self.vars:list[AddressExp] = []
-        self.second_vars:list[AddressExp] = []
+        self.local_ind:int = -1
 
     def load(self, path:str):
         self.vars.clear()
@@ -457,6 +457,7 @@ class VarMgr:
             if self.vars[i].startpc == 0 and self.vars[i].endpc == 0:
                 self.globals.append(self.vars[i])
             else:
+                self.local_ind = i
                 break
     
     def find(self, pos:int, varName:str = "", varNameLst:list[str] = [], decl_file:str = "") -> set[AddressExp]:
@@ -521,16 +522,16 @@ if __name__ == "__main__":
         aver = 0
         sum2 = 0
 
-        for var in mgr.vars:
-            aver += (var.endpc - var.startpc)
-            sum2 += (var.endpc - var.startpc) * (var.endpc - var.startpc)
+        for addrExp in mgr.vars:
+            aver += (addrExp.endpc - addrExp.startpc)
+            sum2 += (addrExp.endpc - addrExp.startpc) * (addrExp.endpc - addrExp.startpc)
             for i in range(size):
-                if var.endpc - var.startpc > threshold[i]:
+                if addrExp.endpc - addrExp.startpc > threshold[i]:
                     bigcount[i] += 1
                     # if i > 28:
                     #     print(f"{var.startpc} {var.endpc} {var.type}")
                 
-            if var.startpc == var.endpc == 0:
+            if addrExp.startpc == addrExp.endpc == 0:
                     globalcount += 1
         
         aver /= len(mgr.vars)
@@ -547,8 +548,8 @@ if __name__ == "__main__":
     '''
     depth_map = {}
     invalid = 0
-    for var in mgr.vars:
-        stack = [(1,var)]
+    for addrExp in mgr.vars:
+        stack = [(1,addrExp)]
         depth = 1
         while len(stack):
             d, curVar = stack[-1]
@@ -645,16 +646,16 @@ if __name__ == "__main__":
         overwriteCnt = 0
         reg1Cnt, reg2Cnt = 0, 0
         inmap = {}
-        for var in mgr.vars:
-            if var.startpc == var.endpc:
+        for addrExp in mgr.vars:
+            if addrExp.startpc == addrExp.endpc:
                 continue
-            startInd, endInd = findId_r(var.startpc, insts), findId_l(var.endpc, insts)
+            startInd, endInd = findId_r(addrExp.startpc, insts), findId_l(addrExp.endpc, insts)
             
             # reg relative to this var's loc expr
-            rel_regs = [var.reg] if var.type == 1 else []
-            if var.type==0 and var.regs:
-                assert(len(list(var.regs.keys()))<=2)
-                rel_regs.extend(list(var.regs.keys()))
+            rel_regs = [addrExp.reg] if addrExp.type == 1 else []
+            if addrExp.type==0 and addrExp.regs:
+                assert(len(list(addrExp.regs.keys()))<=2)
+                rel_regs.extend(list(addrExp.regs.keys()))
 
             inCnt = 0
             
@@ -673,18 +674,18 @@ if __name__ == "__main__":
                     regs_write.append(ins.op_register(i))
 
                 
-                for reg in regs_write:
-                    if reg not in iced_dwarf_regMap:
-                        print(f"no prepare for reg {reg}", file=sys.stderr)
+                for z3_reg in regs_write:
+                    if z3_reg not in iced_dwarf_regMap:
+                        print(f"no prepare for reg {z3_reg}", file=sys.stderr)
                         continue
-                    if iced_dwarf_regMap[reg] in rel_regs:
+                    if iced_dwarf_regMap[z3_reg] in rel_regs:
                         overwriteCnt += 1
                         # print(f"{dwarf_reg_names[iced_dwarf_regMap[reg]]} modified {var.startpc:X} {var.endpc:X} by {ins.__str__()}")
 
 
                 target = isBranch(ins)
                 if target:
-                    if target<var.startpc or target>=var.endpc:
+                    if target<addrExp.startpc or target>=addrExp.endpc:
                         jumpOutCnt += 1
                     else:
                         jumpInCnt += 1
@@ -694,7 +695,7 @@ if __name__ == "__main__":
                     inmap[inCnt]=0
                 inmap[inCnt] += 1
                 if inCnt == 100:
-                    print(f"{var.startpc} {var.endpc} {var.type}")
+                    print(f"{addrExp.startpc} {addrExp.endpc} {addrExp.type}")
         
         print(f"jump out of range {jumpOutCnt} / {allcount}")
         print(f"jump inside the range {jumpInCnt} / {allcount}")

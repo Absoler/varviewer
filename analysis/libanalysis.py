@@ -180,7 +180,7 @@ def analyzeCFG(cfg:angr.analyses.cfg.cfg_fast.CFGFast):
         if node.block:
             def_mgr.setBlock(node.block.vex)
     
-    print(f"{len(nodes)} nodes in total")
+    # print(f"{len(nodes)} nodes in total")
     loopCnt = 0
 
     change = True
@@ -193,7 +193,7 @@ def analyzeCFG(cfg:angr.analyses.cfg.cfg_fast.CFGFast):
             change = analyzeBlock(node) or change
         loopCnt += 1
     
-        print(f"{loopCnt} loops")
+        # print(f"{loopCnt} loops")
 
 def processIRSB(node:angr.knowledge_plugins.cfg.cfg_node.CFGNode):
     irsb:pyvex.IRSB = node.block.vex
@@ -526,7 +526,7 @@ def is_regs_match(exp1:BitVecRef, exp2:BitVecRef):
     return True
 
 def guess_reg_type(z3Expr:BitVecRef) -> dict[str, int]:
-    ''' if reg is converted to small
+    ''' if reg is extracted to small type, record the bit num
     '''
     
     children = z3Expr.children()
@@ -544,10 +544,10 @@ def guess_reg_type(z3Expr:BitVecRef) -> dict[str, int]:
     return res
     
 
-def cond_extract(reg:BitVecRef, _size_num:int):
-    size = (1<<_size_num)
+def cond_extract(reg:BitVecRef, bit_num:int):
+    size = (1<<bit_num)
     # return And(reg<BitVecVal(size, 64), reg>=BitVecVal(0, 64))
-    return ZeroExt(64-_size_num, Extract(_size_num-1, 0, reg)) == reg
+    return ZeroExt(64-bit_num, Extract(bit_num-1, 0, reg)) == reg
 
 if __name__ == "__main__":   
     proj = angr.Project(sys.argv[1], load_options={'auto_load_libs' : False})

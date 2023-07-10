@@ -22,7 +22,9 @@ def getBranch(ins:Instruction):
         ins.op0_kind == OpKind.NEAR_BRANCH16:
         return ins.near_branch_target
     else:
-        print(f"{ins} {ins.op0_kind}")
+        ''' op0_kind is REGISTER or MEMORY
+        '''
+        return -1
 
 def construct(insts:list[Instruction], startpc:int, endpc:int) -> str:
     length = sum([len(ins) for ins in insts])
@@ -46,9 +48,11 @@ nop
         if target and startpc <= target < endpc:
             
             ins.near_branch64 = target-startpc
-        elif target:
+        elif target and target != -1:
             ins.near_branch64 = length
-            # ins.near_branch64 = endpc
+        elif target:
+            ''' ins jump with reg or mem, do nothing
+            '''
         after = len(ins)
         assert(before==after)
         res += formatter.format(ins) + "\n"
@@ -99,7 +103,7 @@ if __name__ == "__main__":
     write_dot(cfg.graph, temp_name+".dot")
     os.system(f"dot {temp_name}.dot -T png -o {temp_name}.png")
     
-    from analysis import traverse
+    from libanalysis import traverse
     vex_file = open(temp_name+".vex", "w")
     traverse(proj, cfg, file=vex_file)
     vex0_file = open(temp_name+".vex.0", "w")
