@@ -54,67 +54,6 @@ string toHex(T v){
     return res;
 }
 
-int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name){
-    Dwarf_Error err;
-    int res;
-    Dwarf_Bool has_name = false, has_origin = false;
-    res = dwarf_hasattr(die, DW_AT_name, &has_name, &err);
-    res = dwarf_hasattr(die, DW_AT_abstract_origin, &has_origin, &err);
-    simple_handle_err(res)
-    if(has_name){
-        Dwarf_Attribute name_attr;
-        Dwarf_Half name_form;
-        dwarf_attr(die, DW_AT_name, &name_attr, &err);
-        if(res == DW_DLV_OK){
-            dwarf_whatform(name_attr, &name_form, &err);
-            if(name_form==DW_FORM_string||name_form==DW_FORM_line_strp||name_form==DW_FORM_strp){
-                res = dwarf_formstring(name_attr, name, &err);
-                return res;
-            }
-        }
-    }else if(has_origin){
-        Dwarf_Attribute off_attr;
-        Dwarf_Half off_form;
-        res = dwarf_attr(die, DW_AT_abstract_origin, &off_attr, &err);
-        simple_handle_err(res)
-
-        res = dwarf_whatform(off_attr, &off_form, &err);
-        if(res!=DW_DLV_OK){
-            dwarf_dealloc_attribute(off_attr);
-            return 1;
-        }
-
-        Dwarf_Off offset;
-        Dwarf_Bool is_info;
-        res = dwarf_global_formref_b(off_attr, &offset, &is_info, &err);
-
-        if(res!=DW_DLV_OK){
-            dwarf_dealloc_attribute(off_attr);
-            return 1;
-        }
-
-        Dwarf_Die origin_die;
-        res = dwarf_offdie_b(dbg, offset, is_info, &origin_die, &err);
-
-        Dwarf_Attribute name_attr;
-        Dwarf_Half name_form;
-
-        Dwarf_Bool has_name = true;
-        res = dwarf_hasattr(origin_die, DW_AT_name, &has_name, &err);
-        if(!has_name){
-            return 1;
-        }
-        dwarf_attr(origin_die, DW_AT_name, &name_attr, &err);
-        if(res == DW_DLV_OK){
-            dwarf_whatform(name_attr, &name_form, &err);
-            if(name_form==DW_FORM_string||name_form==DW_FORM_line_strp||name_form==DW_FORM_strp){
-                res = dwarf_formstring(name_attr, name, &err);
-                return res;
-            }
-        }
-    }
-    return 0;
-}
 
 int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range range){
     int res;
@@ -145,6 +84,7 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range r
     if(file_name) addr.decl_file = string(file_name);
     addr.decl_row = decl_row;
     addr.decl_col = decl_col;
+
 
     if(useJson){
     // addr.output();

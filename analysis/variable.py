@@ -26,7 +26,7 @@ class Expression:
             <int>(reg_ind) : <int>(scale),
         }
         "mem" : <Expression>
-        "memsize" : <Dwarf_Small>
+        "mem_size" : <Dwarf_Small>
         "valid" : <bool>
         "empty" : <bool>
         "sign" : <bool>
@@ -47,7 +47,7 @@ class Expression:
             if self.regs:
                 self.regs:dict = {int(reg) : self.regs[reg] for reg in self.regs}
             self.mem:Expression = Expression(jsonExp=jsonExp["mem"]) if "mem" in jsonExp else None
-            self.memsize:int = jsonExp["memsize"] if "memsize" in jsonExp else 64
+            self.mem_size:int = jsonExp["mem_size"] if "mem_size" in jsonExp else 64
             # self.valid:bool = jsonExp["valid"] # only record valid one
             self.empty:bool = jsonExp["empty"]
 
@@ -71,7 +71,7 @@ class Expression:
             self.offset:int = 0
             self.regs = {}
             self.mem:Expression = None
-            self.memsize:int = 64
+            self.mem_size:int = 64
             # self.valid:bool = True
             self.empty:bool = False
 
@@ -88,6 +88,7 @@ class Expression:
         self.offset = exp.offset
         self.regs = copy.copy(exp.regs)
         self.mem = exp.mem
+        self.mem_size = exp.mem_size
         
         self.hasChild = exp.hasChild
         self.sub1 = exp.sub1
@@ -241,8 +242,10 @@ class Expression:
         ''' mem
         '''
         if self.mem:
-            if self.memsize in load_funcs:
-                return load_funcs[self.memsize](self.mem.get_Z3_expr(hint))
+            if self.mem_size in load_funcs:
+                if self.mem_size < 64:
+                    return ZeroExt(64-self.mem_size, load_funcs[self.mem_size](self.mem.get_Z3_expr(hint)))
+                return load_funcs[self.mem_size](self.mem.get_Z3_expr(hint))
             else:
                 print("wrong memsize", file=sys.stderr)
                 assert(0)

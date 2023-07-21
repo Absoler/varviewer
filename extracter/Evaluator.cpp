@@ -53,7 +53,7 @@ int Evaluator::exec_operation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned
         stk.pop();
         Expression deref;
         deref.mem = addr;
-        deref.mem_offset = op1;
+        deref.mem_size = op1*8;
         stk.push(deref);
         break;
         /*

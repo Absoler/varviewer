@@ -52,6 +52,7 @@ json createJsonforAddressExp(const AddressExp& addrexp);
             <int>(reg_ind) : <int>(scale),
         }
         "mem" : <Expression>
+        "mem_size" : <Dwarf_Small>
         "valid" : <bool>
         "empty" : <bool>
         "sign" : <bool>

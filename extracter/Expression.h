@@ -40,7 +40,7 @@ class Expression{
     Dwarf_Signed reg_scale[REG_END];
     Dwarf_Unsigned offset;
     std::shared_ptr<Expression> mem;
-    Dwarf_Small mem_offset = 0;
+    Dwarf_Small mem_size = 0;
     
     /*
         if true, then this expression is the currenet cfa value

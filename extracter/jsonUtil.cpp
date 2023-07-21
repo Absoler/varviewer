@@ -13,6 +13,7 @@ json createJsonforExpression(const Expression &exp){
                 <int>(reg_ind) : <int>(scale),
             }
             "mem" : <Expression>
+            "mem_size" : <Dwarf_Small>
             "valid" : <bool>
             "empty" : <bool>
             "sign" : <bool>
@@ -41,6 +42,9 @@ json createJsonforExpression(const Expression &exp){
     res["empty"] = exp.empty;
     if(exp.mem){
         res["mem"] = createJsonforExpression(*exp.mem);
+    }
+    if(exp.mem_size){
+        res["mem_size"] = exp.mem_size;
     }
     res["sign"] = exp.sign;
     
