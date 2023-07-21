@@ -7,8 +7,16 @@ from dwarf_iced_map import iced_dwarf_regMap, dwarf_iced_regMap, dwarf_reg_names
 import ctypes
 from dwarf_vex_map import *
 from z3 import *
+from hint import Hint
 
-load:FuncDeclRef = Function("load", BitVecSort(64), BitVecSort(64))
+from libanalysis import load_funcs
+
+and_mask:dict = {
+    0xff : (7, 0),
+    0xffff : (15, 0),
+    0xffffffff : (31, 0),
+    0xff00 : (15, 8)
+}
 
 class Expression:
     '''
@@ -18,6 +26,7 @@ class Expression:
             <int>(reg_ind) : <int>(scale),
         }
         "mem" : <Expression>
+        "memsize" : <Dwarf_Small>
         "valid" : <bool>
         "empty" : <bool>
         "sign" : <bool>
@@ -38,6 +47,7 @@ class Expression:
             if self.regs:
                 self.regs:dict = {int(reg) : self.regs[reg] for reg in self.regs}
             self.mem:Expression = Expression(jsonExp=jsonExp["mem"]) if "mem" in jsonExp else None
+            self.memsize:int = jsonExp["memsize"] if "memsize" in jsonExp else 64
             # self.valid:bool = jsonExp["valid"] # only record valid one
             self.empty:bool = jsonExp["empty"]
 
@@ -61,6 +71,7 @@ class Expression:
             self.offset:int = 0
             self.regs = {}
             self.mem:Expression = None
+            self.memsize:int = 64
             # self.valid:bool = True
             self.empty:bool = False
 
@@ -137,84 +148,105 @@ class Expression:
     def isMem(self):
         return self.mem != None and self.offset == 0  and self.regs == None
     
-    def get_Z3_expr(self) -> BitVecRef:
+    def get_Z3_expr(self, hint:Hint) -> BitVecRef:
     
         if self.hasChild:
             if self.op == DW_OP_abs:
-                return Abs(self.sub1.get_Z3_expr())
+                return Abs(self.sub1.get_Z3_expr(hint))
             
             elif self.op == DW_OP_neg:
-                return -(self.sub1.get_Z3_expr())
+                return -(self.sub1.get_Z3_expr(hint))
             
             elif self.op == DW_OP_not:
-                return ~(self.sub1.get_Z3_expr())
+                return ~(self.sub1.get_Z3_expr(hint))
             
             elif self.op == DW_OP_and:
-                return self.sub1.get_Z3_expr() & self.sub2.get_Z3_expr()
+                exp1, exp2 = self.sub1.get_Z3_expr(hint), self.sub2.get_Z3_expr(hint)
+
+                ''' add hints for `and 0xff..`
+                '''
+                if isinstance(exp1, BitVecNumRef) or isinstance(exp2, BitVecNumRef):
+                    const = int(exp1.params()[0]) if isinstance(exp1, BitVecNumRef) else int(exp2.params()[0])
+                    other = exp2 if isinstance(exp1, BitVecNumRef) else exp1
+                    if const & (const-1) == 0:
+                        hint.add(ULE(other, const))
+                
+                return exp1 & exp2
+
             
             elif self.op == DW_OP_or:
-                return self.sub1.get_Z3_expr() | self.sub2.get_Z3_expr()
+                return self.sub1.get_Z3_expr(hint) | self.sub2.get_Z3_expr(hint)
             
             elif self.op == DW_OP_xor:
-                return self.sub1.get_Z3_expr() ^ self.sub2.get_Z3_expr()
+                return self.sub1.get_Z3_expr(hint) ^ self.sub2.get_Z3_expr(hint)
             
             elif self.op == DW_OP_div:
-                dividend = self.sub2.get_Z3_expr()
-                divisor = self.sub1.get_Z3_expr()
+                dividend = self.sub2.get_Z3_expr(hint)
+                divisor = self.sub1.get_Z3_expr(hint)
                 # integer signed division
                 return If( And(dividend>0, divisor<0), (dividend-1)/divisor-1,
                           If(And(dividend<0, divisor>0), (dividend+1)/divisor-1,
                              dividend/divisor)) 
             
             elif self.op == DW_OP_mod:
-                return self.sub2.get_Z3_expr() % self.sub1.get_Z3_expr()
+                return self.sub2.get_Z3_expr(hint) % self.sub1.get_Z3_expr(hint)
 
             elif self.op == DW_OP_minus:
-                return self.sub2.get_Z3_expr() - self.sub1.get_Z3_expr()
+                return self.sub2.get_Z3_expr(hint) - self.sub1.get_Z3_expr(hint)
             
             elif self.op == DW_OP_plus or self.op == DW_OP_plus_uconst:
-                return self.sub1.get_Z3_expr() + self.sub2.get_Z3_expr()
+                return self.sub1.get_Z3_expr(hint) + self.sub2.get_Z3_expr(hint)
 
             elif self.op == DW_OP_mul:
-                return self.sub1.get_Z3_expr() * self.sub2.get_Z3_expr()
+                return self.sub1.get_Z3_expr(hint) * self.sub2.get_Z3_expr(hint)
             
             elif self.op == DW_OP_shl:
-                return self.sub2.get_Z3_expr() << self.sub1.get_Z3_expr()
+                return self.sub2.get_Z3_expr(hint) << self.sub1.get_Z3_expr(hint)
             
             elif self.op == DW_OP_shr:
                 ''' 
                 '''
-                return LShR(self.sub2.get_Z3_expr(), self.sub1.get_Z3_expr())
+                return LShR(self.sub2.get_Z3_expr(hint), self.sub1.get_Z3_expr(hint))
 
             elif self.op == DW_OP_shra:
-                return self.sub2.get_Z3_expr() >> self.sub1.get_Z3_expr()
+                return self.sub2.get_Z3_expr(hint) >> self.sub1.get_Z3_expr(hint)
 
             elif self.op == DW_OP_eq:
-                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                exp1, exp2 = self.sub1.get_Z3_expr(hint), self.sub2.get_Z3_expr(hint)
                 return If(exp2==exp1, BitVecVal(1, 64), BitVecVal(0, 64))
             
             elif self.op == DW_OP_ge:
-                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                exp1, exp2 = self.sub1.get_Z3_expr(hint), self.sub2.get_Z3_expr(hint)
                 return If(exp2>=exp1, BitVecVal(1, 64), BitVecVal(0, 64))
             
             elif self.op == DW_OP_gt:
-                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                exp1, exp2 = self.sub1.get_Z3_expr(hint), self.sub2.get_Z3_expr(hint)
                 return If(exp2>exp1, BitVecVal(1, 64), BitVecVal(0, 64))
             
             elif self.op == DW_OP_le:
-                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                exp1, exp2 = self.sub1.get_Z3_expr(hint), self.sub2.get_Z3_expr(hint)
                 return If(exp2<=exp1, BitVecVal(1, 64), BitVecVal(0, 64))
 
             elif self.op == DW_OP_lt:
-                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                exp1, exp2 = self.sub1.get_Z3_expr(hint), self.sub2.get_Z3_expr(hint)
                 return If(exp2<exp1, BitVecVal(1, 64), BitVecVal(0, 64))
 
             elif self.op == DW_OP_ne:
-                exp1, exp2 = self.sub1.get_Z3_expr(), self.sub2.get_Z3_expr()
+                exp1, exp2 = self.sub1.get_Z3_expr(hint), self.sub2.get_Z3_expr(hint)
                 return If(exp2!=exp1, BitVecVal(1, 64), BitVecVal(0, 64))
 
             else:
                 assert(0)
+
+        ''' mem
+        '''
+        if self.mem:
+            if self.memsize in load_funcs:
+                return load_funcs[self.memsize](self.mem.get_Z3_expr(hint))
+            else:
+                print("wrong memsize", file=sys.stderr)
+                assert(0)
+
         
         ''' regs + offset
         '''
@@ -329,94 +361,6 @@ class AddressExp(Expression):
 
 
 
-        
-
-    def evaluate(self, init_regs:dict) -> Expression:
-        
-        if self.hasChild:
-            self.evaluate(self.sub1)
-            if self.sub2:
-                self.evaluate(self.sub2)
-            
-            self.calculate(self.op, self.sub2)
-            del self.sub1
-            if self.sub2:
-                del self.sub2
-        
-        if self.regs:
-            for reg in self.regs:
-                if reg in init_regs:
-                    self.offset += init_regs[reg]
-                    self.regs.pop(reg)
-        
-
-
-    def calculate(self, op:int, exp:Expression = None):
-        ''' for imme, calculate their values
-            self is op1, exp is op2
-        '''
-        assert(self.is_const())
-        if op == DW_OP_abs:
-            self.offset = abs(self.offset)
-        
-        elif op == DW_OP_neg:
-            self.offset = -self.offset
-        
-        elif op == DW_OP_not:
-            self.offset = ~self.offset
-        
-        elif op == DW_OP_and:
-            self.offset = self.offset & exp.offset
-        
-        elif op == DW_OP_or:
-            self.offset = self.offset | exp.offset
-        
-        elif op == DW_OP_xor:
-            self.offset = self.offset ^ exp.offset
-
-        elif op == DW_OP_div:
-            self.offset = exp.offset / self.offset
-        
-        elif op == DW_OP_mod:
-            self.offset = exp.offset % self.offset
-
-        elif op == DW_OP_minus:
-            self.offset = exp.offset - self.offset
-        
-        elif op == DW_OP_plus or op == DW_OP_plus_uconst:
-            self.offset += exp.offset
-
-        elif op == DW_OP_mul:
-            self.offset *= exp.offset
-        
-        elif op == DW_OP_shl:
-            self.offset = self.exp << self.offset
-        
-        elif op == DW_OP_shr:
-            ''' 
-            '''
-            self.offset = self.exp >> self.offset
-
-        elif op == DW_OP_shra:
-            self.offset = self.exp >> self.offset
-
-        elif op == DW_OP_eq:
-            self.offset = 1 if self.offset == exp.offset else 0
-        
-        elif op == DW_OP_ge:
-            self.offset = 1 if exp.offset >= self.offset else 0
-        
-        elif op == DW_OP_gt:
-            self.offset = 1 if exp.offset > self.offset else 0
-        
-        elif op == DW_OP_le:
-            self.offset = 1 if exp.offset <= self.offset else 0
-
-        elif op == DW_OP_lt:
-            self.offset = 1 if exp.offset < self.offset else 0
-
-        elif op == DW_OP_ne:
-            self.offset = 1 if exp.offset != self.offset else 0
 
 
 

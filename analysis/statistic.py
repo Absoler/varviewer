@@ -5,7 +5,7 @@ import pyvex
 import angr
 import sys
 from dwarf_vex_map import vex_reg_names
-from analysis import traverse
+from libanalysis import traverse
 
 def count_written_regs(irsb:pyvex.IRSB):
     res = {}

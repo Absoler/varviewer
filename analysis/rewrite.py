@@ -7,6 +7,8 @@ import os
 from networkx.drawing.nx_pydot import write_dot
 
 code_to_str = {Code.__dict__[key]:key for key in Code.__dict__ if isinstance(Code.__dict__[key], int)}
+mnemoic_to_str = {Mnemonic.__dict__[key]:key for key in Mnemonic.__dict__ if isinstance(Mnemonic.__dict__[key], int)}
+
 def getBranch(ins:Instruction):
     if not (code_to_str[ins.code].startswith("JMP") or\
             code_to_str[ins.code].startswith("JN") or\
@@ -30,6 +32,7 @@ def construct(insts:list[Instruction], startpc:int, endpc:int) -> str:
     length = sum([len(ins) for ins in insts])
     formatter = Formatter(FormatterSyntax.GAS)
     formatter.rip_relative_addresses = True
+    formatter.gas_show_mnemonic_size_suffix = False
     prefix = """
 .section .data
 .section .text
@@ -42,20 +45,29 @@ nop
 """
     offset = 0
     res = prefix
+
+    label_map:dict[int, str] = {}
     for ins in insts:
         target = getBranch(ins)
-        before = len(ins)
         if target and startpc <= target < endpc:
-            
-            ins.near_branch64 = target-startpc
-        elif target and target != -1:
-            ins.near_branch64 = length
-        elif target:
-            ''' ins jump with reg or mem, do nothing
-            '''
-        after = len(ins)
-        assert(before==after)
-        res += formatter.format(ins) + "\n"
+            label_map[target] = f"label_0x{target:X}"
+
+    for ins in insts:
+        target = getBranch(ins)
+        
+        if ins.ip in label_map:
+            res += f"{label_map[ins.ip]}:\n"
+        if target:
+            ins_str = mnemoic_to_str[ins.mnemonic]
+            if startpc <= target < endpc:
+                ins_str += f" label_0x{target:X}"
+            else:
+                ''' -1 or not in range [startpc, endpc)
+                '''
+                ins_str += f" end"
+            res += ins_str + "\n"
+        else:
+            res += formatter.format(ins) + "\n"
     res += postfix
     return res
 
