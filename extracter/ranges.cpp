@@ -1,4 +1,5 @@
 #include "ranges.h"
+#include "util.h"
 #include <cstdio>
 #include <libdwarf-0/libdwarf.h>
 
@@ -62,20 +63,7 @@ int parse_simple_ranges(Dwarf_Die die, Dwarf_Addr *startpc, Dwarf_Addr *endpc){
 
     Dwarf_Form_Class high_form_class = dwarf_get_form_class(version, DW_AT_high_pc, offset_size, high_form);
     if(high_form_class == DW_FORM_CLASS_CONSTANT){
-        Dwarf_Unsigned offset = 0;
-        if(high_form==DW_FORM_data1 || high_form==DW_FORM_data2 || high_form==DW_FORM_data4 || high_form==DW_FORM_data8 || high_form==DW_FORM_data16){
-            // endpc must > startpc, so data can't be negative
-            dwarf_formudata(high_pc, &offset, &err);
-        }
-        else if(high_form==DW_FORM_udata){
-            dwarf_formudata(high_pc, &offset, &err);
-
-        }else if(high_form==DW_FORM_sdata){
-            Dwarf_Signed offset_s = 0;
-            dwarf_formsdata(high_pc, &offset_s, &err);
-            offset = (Dwarf_Unsigned)offset_s;
-
-        }
+        Dwarf_Unsigned offset = get_const_u(high_form, high_pc, &err);
         *endpc = *startpc + offset;
     }else if(high_form_class == DW_FORM_CLASS_ADDRESS){
         if(high_form==DW_FORM_addr){

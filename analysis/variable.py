@@ -363,7 +363,10 @@ class AddressExp(Expression):
                 child.offset += out_offset
 
 
-
+    def get_Z3_expr(self, hint: Hint) -> BitVecRef:
+        if self.type == 1:
+            return BitVec(dwarf_reg_names[self.reg], 64)
+        return super().get_Z3_expr(hint)
 
 
 

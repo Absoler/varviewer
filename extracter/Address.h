@@ -2,6 +2,7 @@
 
 #include "Expression.h"
 #include "jsonUtil.h"
+#include "type.h"
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 #include <map>
@@ -14,8 +15,7 @@ enum AddrType{
     VALUE
 };
 
-// <piece_start, piece_size>
-typedef std::pair<Dwarf_Addr, int> piece_type;
+
 
 
 class AddressExp : public Expression{

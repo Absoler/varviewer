@@ -7,24 +7,23 @@ from libanalysis import *
 
 if __name__ == "__main__":
     mgr = VarMgr()
-    jsonpath = "/home/varviewer/extracter/redis.json"
+    jsonpath = "test.json"
     mgr.load(jsonpath)
 
     # addrExp = mgr.getVar(4507560, 4507642, "node")
     # addrExp.restoreCFA(4507628)
-    addrExp = mgr.vars[51187]
+    addrExp = mgr.vars[0]
 
     proj = angr.Project(sys.argv[1], load_options={'auto_load_libs' : False})
     cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
-    analyzeCFG(cfg)
+    analyzeCFG(cfg, proj)
 
-    node = cfg.get_any_node(118)
+    
+    blk = proj.factory.block(0, opt_level=0)
 
     hint = Hint()
     dwarf_z3_expr:BitVecRef = addrExp.get_Z3_expr(hint)
-    vex_z3_expr:BitVecRef = get_z3_expr_from_vex(node.block.vex.statements[20].data, node)
-    print(f"dwarf:\n{simplify(dwarf_z3_expr)}\n\n{dwarf_z3_expr}\n")
-    print(f"vex:\n{simplify(vex_z3_expr)}\n\n{vex_z3_expr}")
+    vex_z3_expr:BitVecRef = get_z3_expr_from_vex(blk.vex.statements[5].data, blk)
     
     reg_map = guess_reg_type(vex_z3_expr)
 
@@ -35,6 +34,8 @@ if __name__ == "__main__":
 
     success = False
     
+    s.add(loadu_cond)
+    s.add(loads_cond)
     s.add(dwarf_z3_expr!=vex_z3_expr)
     if s.check()==unsat:
         success = True
