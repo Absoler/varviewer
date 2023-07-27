@@ -5,6 +5,7 @@ from variable import *
 from libanalysis import *
 import shutil
 import time
+import argparse
 
 
 def find_l_ind(insts:list[Instruction], ip:int):
@@ -23,10 +24,16 @@ def find_l_ind(insts:list[Instruction], ip:int):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("binPath")
+    parser.add_argument("jsonPath")
+    parser.add_argument("-uC","--useCache", action='store_true')
+    args = parser.parse_args()
+
     mgr = VarMgr()
 
-    binPath = sys.argv[1]
-    jsonPath = sys.argv[2]
+    binPath = args.binPath
+    jsonPath = args.jsonPath
     
     # prepare disassembly
     binFile = open(binPath, "rb")
@@ -50,7 +57,7 @@ if __name__ == "__main__":
     # prepare pieces
     piece_limit = 1000000
     tempPath = "/tmp/varviewer/"
-    useCache = True
+    useCache = args.useCache
     ''' if set `useCache`, means we have run this already
     '''
     if not useCache:
@@ -92,16 +99,18 @@ if __name__ == "__main__":
 
         proj = angr.Project(piece_file, load_options={'auto_load_libs' : False})
         cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
-        analyzeCFG(cfg)
+        analysis = Analysis(proj)
+        analysis.analyzeCFG(cfg)
 
         nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(cfg.graph.nodes)
         for node in nodes:
             if node.block is None:
                 continue
             
+            blk = proj.factory.block(0, opt_level=0)
             
             curAddr = -1
-            for ir in node.block.vex.statements:
+            for ir in blk.vex.statements:
                 if isinstance(ir, pyvex.stmt.IMark):
                     curAddr = ir.addr
                     continue
@@ -114,56 +123,51 @@ if __name__ == "__main__":
                 if isinstance(ir, pyvex.stmt.Put):
                     if ir.offset not in vex_to_dwarf:
                         continue
-                    vex_expr = get_z3_expr_from_vex(ir.data, node)
+                    vex_expr = analysis.get_z3_expr_from_vex(ir.data, blk)
                     vex_expr = post_format(vex_expr)
                     mapInfo["reg"] = vex_reg_names[ir.offset] if ir.offset in vex_reg_names else vex_reg_names[ir.offset-1]
                     mapInfo["tag"] = ir.tag
                         
                 elif isinstance(ir, pyvex.stmt.Store):
-                    vex_expr = get_z3_expr_from_vex(ir.data, node)
+                    vex_expr = analysis.get_z3_expr_from_vex(ir.data, blk)
                     vex_expr = post_format(vex_expr)
-                    vex_addr = get_z3_expr_from_vex(ir.addr, node)
+                    vex_addr = analysis.get_z3_expr_from_vex(ir.addr, blk)
                     vex_addr = post_format(vex_addr)
                     mapInfo["tag"] = ir.tag
 
                 elif isinstance(ir, pyvex.stmt.WrTmp):
                     if isinstance(ir.data, pyvex.expr.Load):
-                        vex_addr = get_z3_expr_from_vex(ir.data.addr, node)
+                        vex_addr = analysis.get_z3_expr_from_vex(ir.data.addr, blk)
                         vex_addr = post_format(vex_addr)
                         mapInfo["tag"] = ir.tag
 
-                ''' adjust size of vex_addr and vex_expr to 64
-                '''
-                if vex_expr != None and vex_expr.size() < 64:
-                    old_size = vex_expr.size()
-                    vex_expr = SignExt(64-old_size, vex_expr) if isinstance(vex_expr, BitVecNumRef) else ZeroExt(64-old_size, vex_expr)
-                if vex_addr != None and vex_addr.size() < 64:
-                    old_size = vex_addr.size()
-                    vex_addr = SignExt(64-old_size, vex_addr) if isinstance(vex_addr, BitVecNumRef) else ZeroExt(64-old_size, vex_addr)
+                # ''' adjust size of vex_addr and vex_expr to 64
+                # '''
+                # if vex_expr != None and vex_expr.size() < 64:
+                #     old_size = vex_expr.size()
+                #     vex_expr = SignExt(64-old_size, vex_expr) if isinstance(vex_expr, BitVecNumRef) else ZeroExt(64-old_size, vex_expr)
+                # if vex_addr != None and vex_addr.size() < 64:
+                #     old_size = vex_addr.size()
+                #     vex_addr = SignExt(64-old_size, vex_addr) if isinstance(vex_addr, BitVecNumRef) else ZeroExt(64-old_size, vex_addr)
 
-                if vex_expr != None and vex_expr.size() > 64:
-                    vex_expr = Extract(63, 0, vex_expr)
-                if vex_addr != None and vex_addr.size() > 64:
-                    vex_addr = Extract(63, 0, vex_addr)
+                # if vex_expr != None and vex_expr.size() > 64:
+                #     vex_expr = Extract(63, 0, vex_expr)
+                # if vex_addr != None and vex_addr.size() > 64:
+                #     vex_addr = Extract(63, 0, vex_addr)
 
                 solver.reset()
+                solver.add(loads_cond)
+                solver.add(loadu_cond)
+
                 startTime = time.time()
+
                 if addrExp.type == 0 and vex_addr != None:
                     ''' make assumptions
                     '''
-                    reg_map = guess_reg_type(vex_addr)
-                    z3_regs:list[BitVecRef] = extract_regs_from_z3(vex_addr)
-                    for z3_reg in z3_regs:
-                        if z3_reg.decl().name() not in reg_map:
-                            continue
-                        cond = cond_extract(z3_reg, reg_map[z3_reg.decl().name()])
-                        solver.add(cond)
-                        if z3_reg.size() < 64:
-                            solver.add(SignExt(64-z3_reg.size(), z3_reg)==BitVec(z3_reg.decl().name(), 64))
-
+                    conds = make_reg_type_conds(vex_addr)
+                    solver.add(*conds)
                     solver.add(vex_addr != dwarf_expr)
-                    solver.add(loads_cond)
-                    solver.add(loadu_cond)
+                    
 
                     mapInfo["type"] = 0
                 
@@ -181,19 +185,10 @@ if __name__ == "__main__":
                 if addrExp.type == 2 and vex_expr != None:
                     ''' make assumptions
                     '''
-                    reg_map = guess_reg_type(vex_expr)
-                    z3_regs:list[BitVecRef] = extract_regs_from_z3(vex_expr)
-                    for z3_reg in z3_regs:
-                        if z3_reg.decl().name() not in reg_map:
-                            continue
-                        cond = cond_extract(z3_reg, reg_map[z3_reg.decl().name()])
-                        solver.add(cond)
-                        if z3_reg.size() < 64:
-                            solver.add(SignExt(64-z3_reg.size(), z3_reg)==BitVec(z3_reg.decl().name(), 64))
 
+                    conds = make_reg_type_conds(vex_expr)
+                    solver.add(*conds)
                     solver.add(vex_expr != dwarf_expr)
-                    solver.add(loads_cond)
-                    solver.add(loadu_cond)
 
                     mapInfo["type"] = 2
                 
