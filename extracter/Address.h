@@ -56,6 +56,7 @@ class Address{
 
     bool valid = false;
     std::string name;
+    bool is_variable;
     std::vector<AddressExp> addrs;
     std::string decl_file;
     Dwarf_Unsigned decl_row, decl_col;

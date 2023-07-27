@@ -85,11 +85,14 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range r
     addr.decl_row = decl_row;
     addr.decl_col = decl_col;
 
+    Dwarf_Half tag;
+    dwarf_tag(var_die, &tag, &err);
+    addr.is_variable = (tag == DW_TAG_variable);
 
     if(useJson){
     // addr.output();
         json addrJson = createJsonforAddress(addr);
-        allJson.push_back(move(addrJson));
+        allJson.push_back(std::move(addrJson));
         // auto addrStr = addrJson.dump(4);
         // if (oFileStr!="") {
         //     fstream out(oFileStr.c_str(), ios::app);

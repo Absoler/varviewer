@@ -12,6 +12,7 @@ class AddressExp;
             <AddressExp>
         ]
         "name" : <string>
+        "is_variable" : <bool>
         "decl_file" : <string>
         "decl_row"  : <Dwarf_Unsigned>
         "decl_col"  : <Dwarf_Unsigned>

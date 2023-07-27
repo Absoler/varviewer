@@ -273,6 +273,7 @@ class AddressExp(Expression):
                 <AddressExp>
             ]
             "name" : <string>
+            "is_variable" : <bool>
             "decl_file" : <string>
             "decl_row"  : <Dwarf_Unsigned>
             "decl_col"  : <Dwarf_Unsigned>
@@ -316,8 +317,6 @@ class AddressExp(Expression):
             self.cfa_pcs:list[int] = jsonAddrExp["cfa_pcs"] if self.needCFA else []
             self.cfa_values:list[AddressExp] = jsonAddrExp["cfa_values"] if self.needCFA else []
 
-            self.name:str = ""
-            self.decl_file:str = ""
         else:
             self.reg = 128
             self.type = -1
@@ -331,8 +330,13 @@ class AddressExp(Expression):
             self.cfa_pcs:list[int] = []
             self.cfa_values:list[AddressExp] = []
 
-            self.name:str = ""
-            self.decl_file:str = ""
+
+        self.name:str = ""
+        self.decl_file:str = ""
+        
+        ''' `True` if a variable else a parameter
+        '''
+        self.is_variable = True
 
         
     def __lt__(self, v):
@@ -395,7 +399,7 @@ class VarMgr:
                 var:AddressExp = AddressExp(addrExp)
                 var.name = addr["name"]
                 var.decl_file = addr["decl_file"]
-                
+                var.is_variable = addr["is_variable"]
                 self.vars.append(var)
         
         print(f"load {path} done!", file=sys.stderr)

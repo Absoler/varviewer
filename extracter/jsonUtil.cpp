@@ -112,6 +112,7 @@ json createJsonforAddress(const Address &addr){
                 <AddressExp>
             ]
             "name" : <string>
+            "is_variable" : <bool>
             "decl_file" : <string>
             "decl_row"  : <Dwarf_Unsigned>
             "decl_col"  : <Dwarf_Unsigned>
@@ -124,6 +125,7 @@ json createJsonforAddress(const Address &addr){
         res["addrExps"].push_back(createJsonforAddressExp(addrExp));
     }
     res["name"] = addr.name;
+    res["is_variable"] = addr.is_variable;
     res["decl_file"] = addr.decl_file;
     res["decl_row"] = addr.decl_row;
     res["decl_col"] = addr.decl_col;

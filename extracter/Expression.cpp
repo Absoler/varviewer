@@ -32,31 +32,14 @@ Expression::Expression(){
 
 
 Expression::Expression(Dwarf_Unsigned _val_u){
-    memset(reg_scale, 0, sizeof(reg_scale));
+    reset();
     offset = _val_u;
-    mem = NULL;
-    valid = true;
-
-    hasChild = false;
-    sub1 = NULL;
-    sub2 = NULL;
-    op = 0;
-
-    isCFA = false;
 }
 
 Expression::Expression(Dwarf_Signed _val_s){
-    memset(reg_scale, 0, sizeof(reg_scale));
+    reset();
     offset = (Dwarf_Unsigned)_val_s;
-    mem = NULL;
-    valid = true;
-
-    hasChild = false;
-    sub1 = NULL;
-    sub2 = NULL;
-    op = 0;
-
-    isCFA = false;
+    sign = true;
 }
 
 bool Expression::equal(const Expression &other){
@@ -331,6 +314,7 @@ void Expression::reset(){
     memset(reg_scale, 0, sizeof(reg_scale));
     offset = 0;
     mem = NULL;
+    mem_size = 0;
 
     hasChild = false;
     sub1 = NULL;
@@ -356,6 +340,7 @@ void Expression::setExpFrom(const Expression &exp){
     memcpy(reg_scale, exp.reg_scale, sizeof(reg_scale));
     offset = exp.offset;
     mem = exp.mem;
+    mem_size = exp.mem_size;
     sign = exp.sign;
 
     hasChild = exp.hasChild;
@@ -396,7 +381,7 @@ string Expression::toString(){
             }
         }
         if(mem){
-            res += " + *(" + mem->toString() + ")";
+            res += " + *(" + mem->toString() + (mem_size != 64 ? to_string(mem_size) : "") + ")";
         }
     }
     return res;
