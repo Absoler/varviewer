@@ -7,51 +7,9 @@ from dwarf_iced_map import *
 from z3 import *
 import re
 from hint import Hint
+from util import *
+from typing import NewType
 
-''' function symbols
-'''
-load8:FuncDeclRef = Function("load8", BitVecSort(64), BitVecSort(8))
-load16:FuncDeclRef = Function("load16", BitVecSort(64), BitVecSort(16))
-load32:FuncDeclRef = Function("load32", BitVecSort(64), BitVecSort(32))
-load64:FuncDeclRef = Function("load64", BitVecSort(64), BitVecSort(64))
-load128:FuncDeclRef = Function("load128", BitVecSort(64), BitVecSort(128))
-
-load_funcs:dict = {
-    8 : load8,
-    16 : load16,
-    32 : load32,
-    64 : load64,
-    128 : load128
-}
-
-x = BitVec("addr_x", 64)
-loads_cond = ForAll(x, And(load64(x) == SignExt(56, load8(x)),
-                          load64(x) == SignExt(48, load16(x)),
-                          load64(x) == SignExt(32, load32(x)),
-                          load64(x) == Extract(63, 0, load128(x))))
-
-loadu_cond = ForAll(x, And(load64(x) == ZeroExt(56, load8(x)),
-                          load64(x) == ZeroExt(48, load16(x)),
-                          load64(x) == ZeroExt(32, load32(x)),
-                          load64(x) == Extract(63, 0, load128(x))))
-
-un_cast_re = re.compile(r"Iop_(F|V)?(?P<srcsize>\d+)(U|S|HI|LO)?to(F|V)?(?P<dstsize>\d+)")
-bin_cast_re = re.compile(r"Iop_(F|V)?(?P<srcsize>\d+)(HL)to(F|V)?(?P<dstsize>\d+)")
-cmpF_re = re.compile(r"Iop_Cmp(F)(?P<size>\d+)$")
-''' float conversion, take an extra 32-bit rounding mode arg
-'''
-f_cast_re = re.compile(r"Iop_(F|I)(?P<srcsize>\d+)(U|S)?to(F|I)(?P<dstsize>\d+)(U|S)?")
-
-def post_format(z3_expr:ExprRef):
-    if isinstance(z3_expr, BoolRef):
-        return If(z3_expr, BitVecVal(1, 64), BitVecVal(0, 64))
-    
-    if isinstance(z3_expr, BitVecRef):
-        if z3_expr.size() != 64:
-            z3_expr = Extract(63, 0, z3_expr) if z3_expr.size() > 64 else ZeroExt(64 - z3_expr.size(), z3_expr)
-
-
-    return z3_expr
 
 def getConstOffset(exp1:BitVecRef, exp2:BitVecRef, conds:list):
     ''' return constant offset of two `BitVecRef` if can else `None` 
@@ -94,13 +52,9 @@ def traverse(p:angr.Project, cfg:angr.analyses.cfg.cfg_fast.CFGFast, processIRSB
         stack.extend(node.successors)
 
 
-def check_reg(regOff:int):
-    return 16 <= regOff <= 136
 
-def get_reg_ind(regOff:int):
-    return int((regOff-16)/8)
 
-class location:
+class Location:
     def __init__(self, node, ind) -> None:
         self.node:angr.knowledge_plugins.cfg.cfg_node.CFGNode = node
         self.ind:int = ind
@@ -115,42 +69,45 @@ class location:
         return f"({self.node.name} 0x{self.node.addr:X} {self.ind})\n"
 
 
-class ResultSet:
+class RegFactSet:
+    USEFUL_REG = 32
     def __init__(self) -> None:
         ''' reg_facts[i] record the possible definition place(s) of register i
         '''
         self.clear()
     
     def clear(self) -> None:
-        self.reg_facts:list[set[location]] = [set() for _ in range(16)]
+        ''' location(s) of `put` a register
+        '''
+        self.reg_facts:list[set[Location]] = [set() for _ in range(self.USEFUL_REG)]
 
     def get(self, regOff:int):
-        return self.reg_facts[get_reg_ind(regOff)] if check_reg(regOff) else None
+        return self.reg_facts[get_reg_ind(regOff)] if is_useful_reg(regOff) else None
     
     def setFact(self, regOff:int, fact:set):
-        if not check_reg(regOff):
+        if not is_useful_reg(regOff):
             return
         self.reg_facts[get_reg_ind(regOff)] = fact
 
-    def getFact(self, regOff:int) -> set[location]:
+    def getFact(self, regOff:int) -> set[Location]:
         return self.reg_facts[get_reg_ind(regOff)]
         
     def meet(self, other):
-        for i in range(16):
+        for i in range(self.USEFUL_REG):
             for fact in other.reg_facts[i]:
                 self.reg_facts[i].add(fact)
     
     def __eq__(self, other: object) -> bool:
         eq = True
-        for i in range(16):
+        for i in range(self.USEFUL_REG):
             eq = eq and set(self.reg_facts[i]).__eq__(set(other.reg_facts[i]))
             if not eq:
                 break
         return eq
 
     def copy(self):
-        new = ResultSet()
-        for i in range(16):
+        new = RegFactSet()
+        for i in range(self.USEFUL_REG):
             new.reg_facts[i] = set()
             for loc in self.reg_facts[i]:
                 new.reg_facts[i].add(copy.copy(loc))
@@ -159,19 +116,41 @@ class ResultSet:
     
     def toString(self) -> str:
         s = ""
-        for i in range(16):
+        for i in range(self.USEFUL_REG):
             if not self.reg_facts[i]:
                 continue
-            s += vex_reg_names[i*8+16] + ":\n" 
+            s += vex_reg_names[i*8+self.USEFUL_REG] + ":\n" 
             for loc in self.reg_facts[i]:
                 s += loc.node.__str__() + " " + loc.node.block.vex.statements[loc.ind].__str__() + "\n"
             s += '\n'
         return s
-
-''' record the def ir of each register
+    
+''' only record relevance with register(s)
 '''
+TempFactType = NewType('TempFactType', set[str])
+class TempFactBlock:
+    def __init__(self) -> None:
+        # register(s) each temp variable has relevance with
+        self.temp_reg_map:dict[int, TempFactType] = {}
 
-class definition:
+    def copy(self):
+        new = TempFactBlock()
+        new.temp_reg_map = copy.copy(self.temp_reg_map)
+        return new
+    
+    def update(self, tmp:int, regs:TempFactType) -> bool:
+        change = False
+        if tmp not in self.temp_reg_map:
+            change = True
+        else:
+            change = (self.temp_reg_map[tmp] != regs)
+        self.temp_reg_map[tmp] = regs
+        return change
+
+
+''' record the `def` ir of each register
+'''
+class Definition:
     def __init__(self) -> None:
         self.blockAddr_to_defs:dict[int, dict] = {}
     
@@ -195,59 +174,136 @@ class definition:
 
 class Analysis:
     def __init__(self, proj) -> None:
-        self.context_map:dict[location, ResultSet] = {}
-        self.in_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, ResultSet] = {}
-        self.out_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, ResultSet] = {}
-        self.def_mgr:definition = definition()
+        self.irsb_map:dict[int, pyvex.block.IRSB] = {}
+
+        self.context_reg_map:dict[Location, RegFactSet] = {}
+        self.in_reg_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, RegFactSet] = {}
+        self.out_reg_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, RegFactSet] = {}
+
+        self.temp_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, TempFactBlock] = {}
+
+        self.def_mgr:Definition = Definition()
         self.proj = proj
 
     def clear(self):
-        self.context_map = {}
-        self.in_map = {}
-        self.out_map = {}
+        self.irsb_map = {}
+        self.context_reg_map = {}
+        self.in_reg_map = {}
+        self.out_reg_map = {}
+        self.temp_map = {}
         self.def_mgr.clear()
         self.proj = None
         
+    def query_reg_def(self, location:Location):
+        node, i = location.node, location.ind
+        while i>=0 and Location(node, i) not in self.context_reg_map:
+            i -= 1
+        if i >= 0:
+            return self.context_reg_map[Location(node, i)]
+        else:
+            return self.in_reg_map[node]
+    
+    def query_temp_rel(self, node, tmp:int) -> TempFactType:
+        tempFactBlock = self.temp_map[node]
+        if tmp in tempFactBlock.temp_reg_map:
+            return tempFactBlock.temp_reg_map[tmp]
+        return set()
 
-    def analyzeBlock(self, node:angr.knowledge_plugins.cfg.cfg_node.CFGNode) -> bool:
-        
-        if node.block:
-            blk = self.proj.factory.block(node.addr, opt_level=0)
-            irsb = blk.vex
+    def analyzeBlock_regDef(self, node:angr.knowledge_plugins.cfg.cfg_node.CFGNode) -> bool:
+        ''' register facts analysis part
+        '''
+        if node.addr in self.irsb_map:
+            irsb = self.irsb_map[node.addr]
         else:
             return False
         
         change:bool = False
         
-        in_result:ResultSet = self.in_map[node]
-        out_result:ResultSet = in_result.copy()
+        in_result:RegFactSet = self.in_reg_map[node]
+        out_result:RegFactSet = in_result.copy()
         
         for i, ir in enumerate(irsb.statements):
             if ir.tag == 'Ist_Put':
-                if not check_reg(ir.offset):
+                if not is_useful_reg(ir.offset):
                     continue
-                out_result.setFact(ir.offset, {location(node, i)})
+                out_result.setFact(ir.offset, {Location(node, i)})
 
-                loc = location(node, i)
-                if loc in self.context_map:
+                loc = Location(node, i)
+                if loc in self.context_reg_map:
                     # if not change and context_map[loc] != out_result:
                     #     print(f"1 {ir.__str__()}")
-                    change = change or self.context_map[loc] != out_result
+                    change = change or self.context_reg_map[loc] != out_result
                 else:
                     change = True
                     # print(f"2")
 
-                self.context_map[loc] = out_result.copy()
+                self.context_reg_map[loc] = out_result.copy()
 
             elif ir.tag == 'Ist_PutI':
                 print(f"{irsb.addr} get puti", file=sys.stderr)
         
         # if not change and out_map[node] != out_result:
         #     print(f"3 {out_map[node].toString()} {out_result.toString()}")
-        change = change or self.out_map[node] != out_result
-        self.out_map[node] = out_result
+        change = change or self.out_reg_map[node] != out_result
+        self.out_reg_map[node] = out_result
 
         return change
+
+    def get_relevance_r(self, irExpr:pyvex.expr.IRExpr, location:Location):
+        tempFactBlock:TempFactBlock = self.temp_map[location.node]
+
+        if isinstance(irExpr, pyvex.expr.RdTmp):
+            return tempFactBlock.temp_reg_map[irExpr.tmp]
+        
+        elif isinstance(irExpr, pyvex.expr.Unop) or isinstance(irExpr, pyvex.expr.Binop) or isinstance(irExpr, pyvex.expr.Triop) or isinstance(irExpr, pyvex.expr.Qop):
+            retVal = set()
+            for arg in irExpr.args:
+                retVal.update(self.get_relevance_r(arg, location))
+            return retVal
+        
+        elif isinstance(irExpr, pyvex.expr.Get):
+            retVal = {get_base_name_vex(irExpr.offset)}
+            ''' consider cfg, retrieve reg def from predecessors
+
+                if reg is defined by `tmp` of other blocks, retrieve 
+                temp fact from them
+            '''
+            reg_defs = self.query_reg_def(location)
+            for loc in reg_defs.getFact(irExpr.offset):
+                def_node, def_ind = loc.node, loc.ind
+                data = self.irsb_map[def_node.addr].statements[def_ind].data
+                if not isinstance(data, pyvex.expr.RdTmp):
+                    continue
+                other_temp_fact:TempFactType = self.query_temp_rel(def_node, data.tmp)
+                retVal.update(other_temp_fact)
+
+            return retVal
+
+        elif isinstance(irExpr, pyvex.expr.Load):
+            return self.get_relevance_r(irExpr.addr, location)
+        
+        else:
+            return set()
+
+    def analyzeBlock_relevance(self, node:angr.knowledge_plugins.cfg.cfg_node.CFGNode) -> bool:
+        ''' analyze reg-relevance
+        '''
+        if node.addr in self.irsb_map:
+            irsb = self.irsb_map[node.addr]
+        else:
+            return False
+
+        change:bool = False
+        tempFactBlock:TempFactBlock = self.temp_map[node]
+
+        for i, ir in enumerate(irsb.statements):
+            if isinstance(ir, pyvex.stmt.WrTmp):
+                regs:TempFactType = self.get_relevance_r(ir.data, Location(node, i))
+                change = tempFactBlock.update(ir.tmp, regs) or change
+        
+        return change
+        
+                
 
 
 
@@ -255,12 +311,15 @@ class Analysis:
         
         nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(cfg.graph.nodes)
         for node in nodes:
-            self.in_map[node] = ResultSet()
-            self.out_map[node] = ResultSet()
+            self.in_reg_map[node] = RegFactSet()
+            self.out_reg_map[node] = RegFactSet()
+
+            self.temp_map[node] = TempFactBlock()
 
             if node.block:
                 blk = self.proj.factory.block(node.addr, opt_level=0)
-                self.def_mgr.setBlock(blk.vex)
+                self.irsb_map[node.addr] = blk.vex
+                self.def_mgr.setBlock(self.irsb_map[node.addr])
         
         # print(f"{len(nodes)} nodes in total")
         loopCnt = 0
@@ -269,21 +328,43 @@ class Analysis:
         while change:
             change = False
             for node in nodes:
-                self.in_map[node].clear()
+                self.in_reg_map[node].clear()
                 for pred in node.predecessors:
-                    self.in_map[node].meet(self.out_map[pred])
-                change = self.analyzeBlock(node) or change
+                    self.in_reg_map[node].meet(self.out_reg_map[pred])
+                change = self.analyzeBlock_regDef(node) or change
+            loopCnt += 1
+        
+        print(f"reg loop {loopCnt}")
+        
+        change = True
+        loopCnt = 0
+        while change:
+            change = False
+            for node in nodes:
+                change = self.analyzeBlock_relevance(node) or change
             loopCnt += 1
     
-        # print(f"{loopCnt} loops")
+        print(f"temp loop {loopCnt}")
+
+        ''' for test
+        '''
+        # for node in nodes:
+        #     addr = node.addr
+        #     print(f"addr: {addr:X} {node}")
+        #     self.irsb_map[addr].pp()
+        #     tempFactBlock = self.temp_map[node]
+        #     for tmp in tempFactBlock.temp_reg_map:
+        #         print(f"{tmp} {tempFactBlock.temp_reg_map[tmp]}")
+        #     print(f"successors: {node.successors_and_jumpkinds()}")
+        #     print()
 
     def processIRSB(self, node:angr.knowledge_plugins.cfg.cfg_node.CFGNode):
         irsb:pyvex.IRSB = node.block.vex
-        print("In[]:\n" + self.in_map[node].toString() + "\n")
+        print("In[]:\n" + self.in_reg_map[node].toString() + "\n")
         for i, ir in enumerate(irsb.statements):
-            loc = location(node, i)
-            if loc in self.context_map:
-                print(loc.__str__() + (self.context_map[loc].toString()) + '\n')
+            loc = Location(node, i)
+            if loc in self.context_reg_map:
+                print(loc.__str__() + (self.context_reg_map[loc].toString()) + '\n')
 
 
     def get_z3_expr_from_vex(self, irExpr:pyvex.IRExpr, blk:angr.knowledge_plugins.cfg.cfg_node.CFGNode):
@@ -454,7 +535,7 @@ class Analysis:
         
         elif isinstance(irExpr, pyvex.expr.RdTmp):
             # temp variable
-            define = self.def_mgr.getDef(blk.vex, irExpr.tmp)
+            define = self.def_mgr.getDef(self.irsb_map[blk.addr], irExpr.tmp)
             return self.get_z3_expr_from_vex(define, blk)
         
         elif isinstance(irExpr, pyvex.expr.Load):
@@ -492,12 +573,17 @@ class Analysis:
                 we only use 64-bit version names
             '''
             if irExpr.offset not in vex_reg_names:
-                if irExpr.offset - 1 not in vex_reg_names:
-                    print(f'invalid register {irExpr.offset}')
-                    assert(0)
-                reg_name = vex_reg_names[irExpr.offset - 1]
-                return Extract(15, 8, BitVec(reg_name, 64))
-            
+                if irExpr.offset - 1 in vex_reg_names:    
+                    reg_name = vex_reg_names[irExpr.offset - 1]
+                    return Extract(15, 8, BitVec(reg_name, 64))
+                
+                if irExpr.offset - 8 in vex_reg_names:
+                    reg_name = vex_reg_names[irExpr.offset - 8]
+                    return Extract(127, 64, BitVec(reg_name, 128))
+                
+                print(f'invalid register {irExpr.offset}')
+                assert(0)
+
             reg_name = vex_reg_names[irExpr.offset]
             size = int(irExpr.type[5:])
             return Extract(size-1, 0, BitVec(reg_name, 64)) if size < 64 else ZeroExt(size-64, BitVec(reg_name, 64))
@@ -521,68 +607,6 @@ class Analysis:
         print(irExpr)
         return None
 
-''' utils
-'''
-
-def isReg(exp:BitVecRef) -> bool:
-    return exp.decl().name() in vex_reg_size_codes
-
-def extract_regs_from_z3(z3Expr:BitVecRef) -> list[BitVecRef]:
-    ''' get all register names
-    '''
-    res = [z3Expr] if isReg(z3Expr) else []
-    for child in z3Expr.children():
-        res.extend(extract_regs_from_z3(child))
-    return res
-
-def is_regs_match(exp1:BitVecRef, exp2:BitVecRef):
-    ''' 
-    '''
-    return True
-
-def guess_reg_type_smaller(z3Expr:BitVecRef) -> dict[str, int]:
-    ''' if reg is extracted to small type, record the bit num
-    '''
-    
-    children = z3Expr.children()
-    if len(children) == 0:
-        return {}
-    
-    res = {}
-    isExtract =  z3Expr.decl().name() == "extract"
-    for child in children:
-        if isExtract and isReg(child):
-            r, l = z3Expr.params()
-            res[child.decl().name()] = r-l+1
-        res.update(guess_reg_type_smaller(child))
-    
-    return res
-    
-
-def cond_toSmaller_to64(reg:BitVecRef, bit_num:int):
-    ''' from bitnum to 64
-    '''
-    size = (1<<bit_num)
-    # return And(reg<BitVecVal(size, 64), reg>=BitVecVal(0, 64))
-    return ZeroExt(64-bit_num, Extract(bit_num-1, 0, reg)) == reg
-
-def make_reg_type_conds(z3Expr:BitVecRef) -> list:
-    conds = []
-    reg_map_smaller = guess_reg_type_smaller(z3Expr)
-    z3_regs:list[BitVecRef] = extract_regs_from_z3(z3Expr)
-    for z3_reg in z3_regs:
-        if z3_reg.size() < 64:
-            cond = SignExt(64-z3_reg.size(), z3_reg)==BitVec(z3_reg.decl().name(), 64)
-            conds.append(cond)
-        
-        if z3_reg.decl().name() not in reg_map_smaller:
-            continue
-        ''' if vex convert reg's size, imply no change in conversion
-        '''
-        cond = cond_toSmaller_to64(z3_reg, reg_map_smaller[z3_reg.decl().name()])
-        conds.append(cond)
-    
-    return conds
 
 
 if __name__ == "__main__":   

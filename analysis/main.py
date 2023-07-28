@@ -72,6 +72,8 @@ if __name__ == "__main__":
         
         if piece_num > piece_limit + mgr.local_ind:
             break
+        if piece_num < 100000:
+            continue
         
         piece_name = tempPath + 'piece_' + str(piece_num)
         addrExp = mgr.vars[piece_num]
@@ -107,7 +109,7 @@ if __name__ == "__main__":
             if node.block is None:
                 continue
             
-            blk = proj.factory.block(0, opt_level=0)
+            blk = proj.factory.block(node.addr, opt_level=0)
             
             curAddr = -1
             for ir in blk.vex.statements:
