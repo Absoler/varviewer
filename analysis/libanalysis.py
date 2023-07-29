@@ -9,6 +9,8 @@ import re
 from hint import Hint
 from util import *
 from typing import NewType
+from libresult import *
+import time
 
 
 def getConstOffset(exp1:BitVecRef, exp2:BitVecRef, conds:list):
@@ -131,20 +133,20 @@ TempFactType = NewType('TempFactType', set[str])
 class TempFactBlock:
     def __init__(self) -> None:
         # register(s) each temp variable has relevance with
-        self.temp_reg_map:dict[int, TempFactType] = {}
+        self.temp_regs_map:dict[int, TempFactType] = {}
 
     def copy(self):
         new = TempFactBlock()
-        new.temp_reg_map = copy.copy(self.temp_reg_map)
+        new.temp_regs_map = copy.copy(self.temp_regs_map)
         return new
     
     def update(self, tmp:int, regs:TempFactType) -> bool:
         change = False
-        if tmp not in self.temp_reg_map:
+        if tmp not in self.temp_regs_map:
             change = True
         else:
-            change = (self.temp_reg_map[tmp] != regs)
-        self.temp_reg_map[tmp] = regs
+            change = (self.temp_regs_map[tmp] != regs)
+        self.temp_regs_map[tmp] = regs
         return change
 
 
@@ -173,7 +175,7 @@ class Definition:
 
 
 class Analysis:
-    def __init__(self, proj) -> None:
+    def __init__(self, proj, cfg) -> None:
         self.irsb_map:dict[int, pyvex.block.IRSB] = {}
 
         self.context_reg_map:dict[Location, RegFactSet] = {}
@@ -184,6 +186,7 @@ class Analysis:
 
         self.def_mgr:Definition = Definition()
         self.proj = proj
+        self.cfg:angr.analyses.cfg.cfg_fast.CFGFast = cfg
 
     def clear(self):
         self.irsb_map = {}
@@ -205,8 +208,8 @@ class Analysis:
     
     def query_temp_rel(self, node, tmp:int) -> TempFactType:
         tempFactBlock = self.temp_map[node]
-        if tmp in tempFactBlock.temp_reg_map:
-            return tempFactBlock.temp_reg_map[tmp]
+        if tmp in tempFactBlock.temp_regs_map:
+            return tempFactBlock.temp_regs_map[tmp]
         return set()
 
     def analyzeBlock_regDef(self, node:angr.knowledge_plugins.cfg.cfg_node.CFGNode) -> bool:
@@ -253,7 +256,7 @@ class Analysis:
         tempFactBlock:TempFactBlock = self.temp_map[location.node]
 
         if isinstance(irExpr, pyvex.expr.RdTmp):
-            return tempFactBlock.temp_reg_map[irExpr.tmp]
+            return tempFactBlock.temp_regs_map[irExpr.tmp]
         
         elif isinstance(irExpr, pyvex.expr.Unop) or isinstance(irExpr, pyvex.expr.Binop) or isinstance(irExpr, pyvex.expr.Triop) or isinstance(irExpr, pyvex.expr.Qop):
             retVal = set()
@@ -307,9 +310,9 @@ class Analysis:
 
 
 
-    def analyzeCFG(self, cfg:angr.analyses.cfg.cfg_fast.CFGFast):
+    def analyzeCFG(self):
         
-        nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(cfg.graph.nodes)
+        nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(self.cfg.graph.nodes)
         for node in nodes:
             self.in_reg_map[node] = RegFactSet()
             self.out_reg_map[node] = RegFactSet()
@@ -367,27 +370,27 @@ class Analysis:
                 print(loc.__str__() + (self.context_reg_map[loc].toString()) + '\n')
 
 
-    def get_z3_expr_from_vex(self, irExpr:pyvex.IRExpr, blk:angr.knowledge_plugins.cfg.cfg_node.CFGNode):
+    def get_z3_expr_from_vex(self, irExpr:pyvex.IRExpr, irsb:pyvex.block.IRSB):
         ''' stop at the first register
         '''
         if isinstance(irExpr, pyvex.expr.Binop):
             
             if irExpr.op.startswith("Iop_Add"):
-                return self.get_z3_expr_from_vex(irExpr.args[0], blk) + self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                return self.get_z3_expr_from_vex(irExpr.args[0], irsb) + self.get_z3_expr_from_vex(irExpr.args[1], irsb)
             
             elif irExpr.op.startswith("Iop_Sub"):
-                return self.get_z3_expr_from_vex(irExpr.args[0], blk) - self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                return self.get_z3_expr_from_vex(irExpr.args[0], irsb) - self.get_z3_expr_from_vex(irExpr.args[1], irsb)
             
             elif irExpr.op.startswith("Iop_DivMod"):
-                e1:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], blk)
-                e2:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                e1:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], irsb)
+                e2:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 if e2.size() < e1.size():
                     e2 = ZeroExt(e1.size()-e2.size(), e2)
                 return e1 % e2
             
             elif irExpr.op.startswith("Iop_Div"):
-                e1:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], blk)
-                e2:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                e1:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], irsb)
+                e2:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 if e2.size() < e1.size():
                     e2 = ZeroExt(e1.size()-e2.size(), e2)
                 return e1 / e2
@@ -395,27 +398,27 @@ class Analysis:
             elif pyvex.expr.mull_signature_re.match(irExpr.op):
                 size, _ = pyvex.expr.mull_signature(irExpr.op)
                 size = int(size[5:])
-                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], blk), self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 if "S" in irExpr.op:
                     return SignExt(size//2, exp1 * exp2)
                 else:
                     return ZeroExt(size//2, exp1 * exp2)
 
             elif irExpr.op.startswith("Iop_Mul"):
-                return self.get_z3_expr_from_vex(irExpr.args[0], blk) * self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                return self.get_z3_expr_from_vex(irExpr.args[0], irsb) * self.get_z3_expr_from_vex(irExpr.args[1], irsb)
 
             elif irExpr.op.startswith("Iop_And"):
-                return self.get_z3_expr_from_vex(irExpr.args[0], blk) & self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                return self.get_z3_expr_from_vex(irExpr.args[0], irsb) & self.get_z3_expr_from_vex(irExpr.args[1], irsb)
             
             elif irExpr.op.startswith("Iop_Or"):
-                return self.get_z3_expr_from_vex(irExpr.args[0], blk) | self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                return self.get_z3_expr_from_vex(irExpr.args[0], irsb) | self.get_z3_expr_from_vex(irExpr.args[1], irsb)
             
             elif irExpr.op.startswith("Iop_Xor"):
-                return self.get_z3_expr_from_vex(irExpr.args[0], blk) ^ self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                return self.get_z3_expr_from_vex(irExpr.args[0], irsb) ^ self.get_z3_expr_from_vex(irExpr.args[1], irsb)
             
             elif irExpr.op.startswith("Iop_Shl"):
-                base:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], blk)
-                index:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                base:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], irsb)
+                index:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 if index.size() < base.size():
                     if isinstance(index, BitVecNumRef):
                         index = BitVecVal(index.as_long(), base.size())
@@ -424,8 +427,8 @@ class Analysis:
                 return base << index
             
             elif irExpr.op.startswith("Iop_Shr"):
-                base:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], blk)
-                index:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                base:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], irsb)
+                index:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 if index.size() < base.size():
                     if isinstance(index, BitVecNumRef):
                         index = BitVecVal(index.as_long(), base.size())
@@ -434,8 +437,8 @@ class Analysis:
                 return LShR(base, index)
 
             elif irExpr.op.startswith("Iop_Sar"):
-                base:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], blk)
-                index:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                base:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], irsb)
+                index:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 if index.size() < base.size():
                     if isinstance(index, BitVecNumRef):
                         index = BitVecVal(index.as_long(), base.size())
@@ -444,38 +447,38 @@ class Analysis:
                 return If(base<0, (base+1)/(1<<index) - 1, base/(1<<index))
             
             elif cmpF_re.match(irExpr.op):
-                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], blk), self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return BitVec("cmpf", 32)
 
             elif irExpr.op.startswith("Iop_CmpEQ"):
-                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], blk), self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return If(exp1==exp2, BitVecVal(1, 1), BitVecVal(0, 1))
             
             elif irExpr.op.startswith("Iop_CmpGE"):
-                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], blk), self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return If(exp1>=exp2, BitVecVal(1, 1), BitVecVal(0, 1))
             
             elif irExpr.op.startswith("Iop_CmpGT"):
-                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], blk), self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return If(exp1>exp2, BitVecVal(1, 1), BitVecVal(0, 1))
             
             elif irExpr.op.startswith("Iop_CmpLE"):
-                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], blk), self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return If(exp1<=exp2, BitVecVal(1, 1), BitVecVal(0, 1))
             
             elif irExpr.op.startswith("Iop_CmpLT"):
-                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], blk), self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return If(exp1<exp2, BitVecVal(1, 1), BitVecVal(0, 1))
             
             elif irExpr.op.startswith("Iop_CmpNE"):
-                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], blk), self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return If(exp1!=exp2, BitVecVal(1, 1), BitVecVal(0, 1))
             
             elif f_cast_re.match(irExpr.op):
                 ''' omit extra rounding mode
                 '''
                 src_size, dst_size = int(f_cast_re.match(irExpr.op).group("srcsize")), int(f_cast_re.match(irExpr.op).group("dstsize"))
-                old_expr:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], blk)
+                old_expr:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 if src_size < dst_size:
                     return SignExt(dst_size-src_size, old_expr) if "S" in irExpr.op else ZeroExt(dst_size-src_size, old_expr)
                 else:
@@ -487,32 +490,32 @@ class Analysis:
                 
                 src_size, dst_size = int(bin_cast_re.match(irExpr.op).group("srcsize")), int(bin_cast_re.match(irExpr.op).group("dstsize"))
 
-                high_part = Extract(src_size-1, 0, self.get_z3_expr_from_vex(irExpr.args[0], blk))
-                low_part = Extract(src_size-1, 0, self.get_z3_expr_from_vex(irExpr.args[1], blk))
+                high_part = Extract(src_size-1, 0, self.get_z3_expr_from_vex(irExpr.args[0], irsb))
+                low_part = Extract(src_size-1, 0, self.get_z3_expr_from_vex(irExpr.args[1], irsb))
                 return Concat(high_part, low_part)
 
             else:
                 print(f"unhandle op {irExpr.op}", file=sys.stderr)
                 ''' 
                 '''
-                return self.get_z3_expr_from_vex(irExpr.args[0], blk)
+                return self.get_z3_expr_from_vex(irExpr.args[0], irsb)
                 assert(0)
 
         elif isinstance(irExpr, pyvex.expr.Unop):
             if irExpr.op.startswith("Iop_Abs"):
-                return Abs(self.get_z3_expr_from_vex(irExpr.args[0], blk))
+                return Abs(self.get_z3_expr_from_vex(irExpr.args[0], irsb))
             
             elif irExpr.op.startswith("Iop_Neg"):
-                return -self.get_z3_expr_from_vex(irExpr.args[0], blk)
+                return -self.get_z3_expr_from_vex(irExpr.args[0], irsb)
             
             elif irExpr.op.startswith("Iop_Not"):
-                return ~self.get_z3_expr_from_vex(irExpr.args[0], blk)
+                return ~self.get_z3_expr_from_vex(irExpr.args[0], irsb)
             
             elif un_cast_re.match(irExpr.op):
                 ''' convert operator
                 '''
                 src_size, dst_size = int(un_cast_re.match(irExpr.op).group("srcsize")), int(un_cast_re.match(irExpr.op).group("dstsize"))
-                old_expr:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], blk)
+                old_expr:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], irsb)
                 
                 if isinstance(old_expr, BoolRef):
                     return old_expr
@@ -531,12 +534,12 @@ class Analysis:
                 
             else:
                 print(f"unhandle op {irExpr.op}", file=sys.stderr)
-                return self.get_z3_expr_from_vex(irExpr.args[0], blk)
+                return self.get_z3_expr_from_vex(irExpr.args[0], irsb)
         
         elif isinstance(irExpr, pyvex.expr.RdTmp):
             # temp variable
-            define = self.def_mgr.getDef(self.irsb_map[blk.addr], irExpr.tmp)
-            return self.get_z3_expr_from_vex(define, blk)
+            define = self.def_mgr.getDef(irsb, irExpr.tmp)
+            return self.get_z3_expr_from_vex(define, irsb)
         
         elif isinstance(irExpr, pyvex.expr.Load):
             ''' memory
@@ -545,7 +548,7 @@ class Analysis:
             '''
             size = int(pyvex.const.type_str_re.match(irExpr.type).group("size"))
             if size in load_funcs:
-                return load_funcs[size](self.get_z3_expr_from_vex(irExpr.addr, blk))
+                return load_funcs[size](self.get_z3_expr_from_vex(irExpr.addr, irsb))
             else:
                 assert(0)
 
@@ -560,11 +563,11 @@ class Analysis:
         elif isinstance(irExpr, pyvex.expr.ITE):
             ''' selection based on cmp result, similar to `phi`
             '''
-            cond = self.get_z3_expr_from_vex(irExpr.cond, blk)
+            cond = self.get_z3_expr_from_vex(irExpr.cond, irsb)
             if not isinstance(cond, BoolRef):
                 cond = If(cond != 0, True, False)
-            iftrue = self.get_z3_expr_from_vex(irExpr.iftrue, blk)
-            iffalse = self.get_z3_expr_from_vex(irExpr.iffalse, blk)
+            iftrue = self.get_z3_expr_from_vex(irExpr.iftrue, irsb)
+            iffalse = self.get_z3_expr_from_vex(irExpr.iffalse, irsb)
             return If(cond, iftrue, iffalse)
         
 
@@ -606,6 +609,126 @@ class Analysis:
         
         print(irExpr)
         return None
+
+
+    def match(self, dwarf_expr:BitVecRef) -> list[Result]:
+        dwarf_regs = extract_regs_from_z3(dwarf_expr)
+        dwarf_regs = {reg.decl().name() for reg in dwarf_regs}
+
+        dwarf_addr = get_addr(dwarf_expr)
+
+        nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(self.cfg.graph.nodes)
+        slv = Solver()
+        reses:list[Result] = []
+
+        startTime = time.time()
+        for node in nodes:
+            if node.addr not in self.irsb_map:
+                continue
+            irsb:pyvex.block.IRSB = self.irsb_map[node.addr]
+
+
+            curAddr = -1
+            tempFactBlock:TempFactBlock = self.temp_map[node]
+            
+            for i, ir in enumerate(irsb.statements):
+                if isinstance(ir, pyvex.stmt.IMark):
+                    curAddr = ir.addr
+                    continue
+                
+                preMatchTypeValue:int = MatchType.invalid.value
+                vex_dst_addr, vex_dst_val, vex_src_addr, vex_src_val = None, None, None, None
+                hasCandidate = False
+                
+                if isinstance(ir, pyvex.stmt.Put):
+                    ''' put(reg) = tmp
+                        
+                        usually mapped to an instruction such as `mov tmp, reg` 
+                        or `add tmp-reg, reg`
+                    '''
+                    preMatchTypeValue |= ( MatchType.src_value.value | MatchType.dst_value.value )
+
+                    if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
+                        vex_src_val = self.get_z3_expr_from_vex(ir.data, irsb)
+                        vex_src_val = post_format(vex_src_val)
+
+                    vex_dst_val = BitVec(get_base_name_vex(ir.offset), 64)
+                    
+                    hasCandidate = True
+                
+                elif isinstance(ir, pyvex.stmt.Store):
+                    ''' store(addr) = data
+
+
+                    '''
+                    preMatchTypeValue |= ( MatchType.dst_addr.value | MatchType.src_value.value )
+
+                    if isinstance(ir.addr, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.addr.tmp]):
+                        vex_dst_addr = self.get_z3_expr_from_vex(ir.addr, irsb)
+                        vex_dst_addr = post_format(vex_dst_addr)
+                        hasCandidate = True
+
+                    if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
+                        vex_src_val = self.get_z3_expr_from_vex(ir.data, irsb)
+                        vex_src_val = post_format(vex_src_val)
+                        hasCandidate = True
+
+                elif isinstance(ir, pyvex.stmt.WrTmp) and isinstance(ir.data, pyvex.expr.Load):
+                    ''' tmp = load(addr)
+                    '''
+                    preMatchTypeValue |= MatchType.src_addr.value
+
+                    if isinstance(ir.data.addr, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.addr.tmp]):
+                        vex_src_addr = self.get_z3_expr_from_vex(ir.data.addr, irsb)
+                        vex_src_addr = post_format(vex_src_addr)
+                        hasCandidate = True
+
+                if not hasCandidate:
+                    continue
+                
+                print(f"---- summary {time.time()-startTime}")
+                startTime = time.time()
+                
+                slv.reset()
+                slv.add(loads_cond)
+                slv.add(loadu_cond)
+                if (preMatchTypeValue & MatchType.src_value.value) and vex_src_val != None:
+                    conds = make_reg_type_conds(vex_src_val)
+                    slv.add(conds)
+                    slv.add(dwarf_expr != vex_src_val)
+
+                    if slv.check() == unsat:
+                        reses.append(Result(curAddr, MatchType.src_value))
+                
+                if (preMatchTypeValue & MatchType.src_addr.value) and vex_src_addr != None:
+                    conds = make_reg_type_conds(vex_src_addr)
+                    slv.add(conds)
+                    slv.add(dwarf_expr != vex_src_addr)
+
+                    if slv.check() == unsat:
+                        reses.append(Result(curAddr, MatchType.src_addr))
+
+                if (preMatchTypeValue & MatchType.dst_value.value) and vex_dst_val != None:
+                    conds = make_reg_type_conds(vex_dst_val)
+                    slv.add(conds)
+                    slv.add(dwarf_expr != vex_dst_val)
+
+                    if slv.check() == unsat:
+                        reses.append(Result(curAddr, MatchType.dst_value))
+                
+                if (preMatchTypeValue & MatchType.dst_addr.value) and vex_dst_addr != None:
+                    conds = make_reg_type_conds(vex_dst_addr)
+                    slv.add(conds)
+                    slv.add(dwarf_expr != vex_dst_addr)
+
+                    if slv.check() == unsat:
+                        reses.append(Result(curAddr, MatchType.dst_addr))
+
+                print(f"---- match {time.time()-startTime}")
+                startTime = time.time()
+        
+
+        return reses
 
 
 

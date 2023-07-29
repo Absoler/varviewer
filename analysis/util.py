@@ -151,3 +151,7 @@ def make_reg_type_conds(z3Expr:BitVecRef) -> list:
     
     return conds
 
+def get_addr(z3Expr:BitVecRef) -> BitVecRef:
+    if z3Expr.decl().name().startswith("load"):
+        return z3Expr.children()[0]
+    return None
