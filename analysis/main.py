@@ -33,6 +33,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--end", type=int, help="specify end piece number", default=piece_limit)
     parser.add_argument("-oG", "--onlyGen", action="store_true", help="only generate piece(s) without analysis")
     parser.add_argument("-sT", "--showTime", action="store_true", help="show time statistics")
+    parser.add_argument("-o", "--output", help="specify the output json file", default="")
     args = parser.parse_args()
 
     mgr = VarMgr()
@@ -159,6 +160,13 @@ if __name__ == "__main__":
 
         all_reses.extend(reses)
     
-    for res in all_reses:
-        print(res)
 
+    ''' output result
+    '''
+    if args.output == "":
+        for res in all_reses:
+            print(res)
+    else:
+        res_file = open(args.output, "w")
+        json.dump(list(map(dict, all_reses)), res_file, indent=4)
+        res_file.close()

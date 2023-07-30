@@ -46,9 +46,13 @@ class Result:
         self.ind = ind
     
     def keys(self):
-        return ('addr', 'matchPos', 'indirect', 'offset', 'expression', )
+        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'offset', )
     
     def __getitem__(self, item):
+        if item == "matchPos":
+            return self.matchPos.value
+        elif item == "dwarfType":
+            return self.dwarfType.value
         return getattr(self, item)
     
     def __str__(self) -> str:

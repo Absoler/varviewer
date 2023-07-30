@@ -321,7 +321,21 @@ class Analysis:
                 change = tempFactBlock.update(ir.oldLo, regs) or change
                 change = tempFactBlock.update(ir.oldHi, regs) or change
                 
-        
+            if isinstance(ir, pyvex.stmt.Dirty):
+                ''' dirty call, now only inherit relevant regs from its args
+                '''
+                args_regs = set()
+                for arg in ir.args:
+                    regs:TempFactType = self.get_relevance_r(arg, Location(node, i))
+                    args_regs.update(regs)
+                change = tempFactBlock.update(ir.tmp, args_regs) or change
+
+            if isinstance(ir, pyvex.stmt.LoadG):
+                ''' load with guard, only care about `addr`
+                '''
+                regs:TempFactType = self.get_relevance_r(ir.addr, Location(node, i))
+                change = tempFactBlock.update(ir.dst, regs) or change
+
         return change
         
                 
