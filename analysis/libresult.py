@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 from z3 import *
+from util import *
 '''
     ---------- final result format ----------
 
@@ -30,7 +31,7 @@ def setpos(z3Expr:ExprRef, pos:MatchPosition = MatchPosition.invalid):
     setattr(z3Expr, "matchPos", pos)
 
 class Result:
-    def __init__(self, addr:int, matchPos:MatchPosition, indirect) -> None:
+    def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, irsb_addr=0, ind=0) -> None:
         self.addr:int = addr
         self.name:str = ""
         self.matchPos:MatchPosition = matchPos
@@ -38,8 +39,11 @@ class Result:
             match to &v, v
         '''
         self.indirect:int = indirect
+        self.dwarfType:DwarfType = dwarfType
         self.offset:int = 0
         self.expression = None
+        self.irsb_addr = irsb_addr
+        self.ind = ind
     
     def keys(self):
         return ('addr', 'matchPos', 'indirect', 'offset', 'expression', )
@@ -48,8 +52,9 @@ class Result:
         return getattr(self, item)
     
     def __str__(self) -> str:
-        return f"0x{self.addr:X} name:{self.name}    pos:{self.matchPos.name} indirect level:{self.indirect}"
+        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name}    pos:{self.matchPos.name} indirect level:{self.indirect} {self.piece_num}:{self.irsb_addr}:{self.ind}"
     
-    def update(self, base_addr:int, name:str):
-        self.addr += base_addr
+    def update(self, piece_addrs:list[int], name:str, piece_num:int):
+        self.addr = piece_addrs[self.addr]
         self.name = name
+        self.piece_num = piece_num

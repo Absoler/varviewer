@@ -13,9 +13,10 @@ import re
 #
 # ----------------------------------------
 
-MEMORY = 0
-REGISTER = 1
-VALUE = 2
+class DwarfType(Enum):
+    MEMORY = 0
+    REGISTER = 1
+    VALUE = 2
 
 # ----------------------------------------
 #
@@ -25,7 +26,7 @@ VALUE = 2
 
 un_cast_re = re.compile(r"Iop_(F|V)?(?P<srcsize>\d+)(U|S|HI|LO)?to(F|V)?(?P<dstsize>\d+)")
 bin_cast_re = re.compile(r"Iop_(F|V)?(?P<srcsize>\d+)(HL)to(F|V)?(?P<dstsize>\d+)")
-cmpF_re = re.compile(r"Iop_Cmp(F)(?P<size>\d+)$")
+cmpF_re = re.compile(r"Iop_(Cas|Exp)?Cmp(F)(?P<size>\d+)$")
 ''' float conversion, take an extra 32-bit rounding mode arg
 '''
 f_cast_re = re.compile(r"Iop_(F|I)(?P<srcsize>\d+)(U|S)?to(F|I)(?P<dstsize>\d+)(U|S)?")

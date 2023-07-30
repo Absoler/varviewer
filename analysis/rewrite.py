@@ -28,7 +28,7 @@ def getBranch(ins:Instruction):
         '''
         return -1
 
-def construct(insts:list[Instruction], startpc:int, endpc:int) -> str:
+def construct(insts:list[Instruction], startpc:int, endpc:int) -> (str, list[int]):
     length = sum([len(ins) for ins in insts])
     formatter = Formatter(FormatterSyntax.GAS)
     formatter.rip_relative_addresses = True
@@ -47,10 +47,12 @@ nop
     res = prefix
 
     label_map:dict[int, str] = {}
+    addr_list:list[int] = []
     for ins in insts:
         target = getBranch(ins)
         if target and startpc <= target < endpc:
             label_map[target] = f"label_0x{target:X}"
+        addr_list.append(ins.ip)
 
     for ins in insts:
         target = getBranch(ins)
@@ -69,7 +71,7 @@ nop
         else:
             res += formatter.format(ins) + "\n"
     res += postfix
-    return res
+    return res, addr_list
 
 
 
@@ -99,7 +101,7 @@ if __name__ == "__main__":
             insts.append(ins)
         lastip = ins.ip
     
-    assembly_code = construct(insts, startpc, endpc)
+    assembly_code, _ = construct(insts, startpc, endpc)
     print(assembly_code)
 
     temp_name = "piece"

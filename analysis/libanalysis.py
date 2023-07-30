@@ -187,6 +187,7 @@ class Analysis:
         self.def_mgr:Definition = Definition()
         self.proj = proj
         self.cfg:angr.analyses.cfg.cfg_fast.CFGFast = cfg
+        self.addr_list:list[int] = []
 
     def clear(self):
         self.irsb_map = {}
@@ -196,6 +197,8 @@ class Analysis:
         self.temp_map = {}
         self.def_mgr.clear()
         self.proj = None
+        self.cfg = None
+        self.addr_list = []
         
     def query_reg_def(self, location:Location):
         node, i = location.node, location.ind
@@ -303,6 +306,21 @@ class Analysis:
             if isinstance(ir, pyvex.stmt.WrTmp):
                 regs:TempFactType = self.get_relevance_r(ir.data, Location(node, i))
                 change = tempFactBlock.update(ir.tmp, regs) or change
+            
+            if isinstance(ir, pyvex.stmt.CAS):
+                ''' compare and set
+
+                    .addr is the memory address.
+                    .end  is the endianness with which memory is accessed
+
+                    If .addr contains the same value as .expdLo, then .dataLo is
+                    written there, else there is no write.  In both cases, the
+                    original value at .addr is copied into .oldLo.
+                '''
+                regs:TempFactType = self.get_relevance_r(ir.addr, Location(node, i))
+                change = tempFactBlock.update(ir.oldLo, regs) or change
+                change = tempFactBlock.update(ir.oldHi, regs) or change
+                
         
         return change
         
@@ -320,9 +338,10 @@ class Analysis:
             self.temp_map[node] = TempFactBlock()
 
             if node.block:
-                blk = self.proj.factory.block(node.addr, opt_level=0)
+                blk:angr.block.Block = self.proj.factory.block(node.addr, opt_level=0)
                 self.irsb_map[node.addr] = blk.vex
                 self.def_mgr.setBlock(self.irsb_map[node.addr])
+                self.addr_list.extend(blk.instruction_addrs)
         
         # print(f"{len(nodes)} nodes in total")
         loopCnt = 0
@@ -349,6 +368,9 @@ class Analysis:
     
         print(f"temp loop {loopCnt}")
 
+        self.addr_list = list(set(self.addr_list))
+        self.addr_list.sort()
+
         ''' for test
         '''
         # for node in nodes:
@@ -356,8 +378,8 @@ class Analysis:
         #     print(f"addr: {addr:X} {node}")
         #     self.irsb_map[addr].pp()
         #     tempFactBlock = self.temp_map[node]
-        #     for tmp in tempFactBlock.temp_reg_map:
-        #         print(f"{tmp} {tempFactBlock.temp_reg_map[tmp]}")
+        #     for tmp in tempFactBlock.temp_regs_map:
+        #         print(f"{tmp} {tempFactBlock.temp_regs_map[tmp]}")
         #     print(f"successors: {node.successors_and_jumpkinds()}")
         #     print()
 
@@ -611,14 +633,14 @@ class Analysis:
         return None
 
 
-    def match(self, dwarf_expr:BitVecRef, ty:int, useOffset:bool) -> list[Result]:
+    def match(self, dwarf_expr:BitVecRef, ty:DwarfType, useOffset:bool, showTime:bool=False) -> list[Result]:
         dwarf_regs = extract_regs_from_z3(dwarf_expr)
         dwarf_regs = {reg.decl().name() for reg in dwarf_regs}
 
         dwarf_addr = None
-        if ty == VALUE:
+        if ty == DwarfType.VALUE:
             dwarf_addr = get_addr(dwarf_expr)
-        elif ty == MEMORY:
+        elif ty == DwarfType.MEMORY:
             dwarf_addr = dwarf_expr
             dwarf_expr = None
 
@@ -626,7 +648,8 @@ class Analysis:
         slv = Solver()
         reses:list[Result] = []
 
-        startTime = time.time()
+        if showTime:
+            startTime = time.time()
         for node in nodes:
             if node.addr not in self.irsb_map:
                 continue
@@ -650,10 +673,15 @@ class Analysis:
                         
                         usually mapped to an instruction such as `mov tmp, reg` 
                         or `add tmp-reg, reg`
+
+                        skip un-useful registers
                     '''
 
+                    if not is_useful_reg(ir.offset):
+                        continue
+
                     if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
-                        print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
+                        # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.src_value)
@@ -672,7 +700,7 @@ class Analysis:
                     '''
 
                     if isinstance(ir.addr, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.addr.tmp]):
-                        print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.addr.tmp]}")
+                        # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.addr.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.addr, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.dst_addr)
@@ -680,7 +708,7 @@ class Analysis:
                         hasCandidate = True
 
                     if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
-                        print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
+                        # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.src_value)
@@ -692,21 +720,31 @@ class Analysis:
                     '''
 
                     if isinstance(ir.data.addr, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.addr.tmp]):
-                        print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.addr.tmp]}")
+                        # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.addr.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.data.addr, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.src_addr)
                         vex_exprs.append(vex_expr)
                         hasCandidate = True
 
-                print(f"---- summary {time.time()-startTime}")
-                startTime = time.time()
+                if showTime:
+                    print(f"---- summary {time.time()-startTime}")
+                    startTime = time.time()
 
                 if not hasCandidate:
                     continue
                 
                 
                 for vex_expr in vex_exprs:
+                    ''' avoid z3 match for register location description
+                    '''
+                    if ty == DwarfType.REGISTER:
+                        vex_regs = extract_regs_from_z3(vex_expr)
+                        vex_regs = {reg.decl().name() for reg in vex_regs}
+                        if vex_regs == dwarf_regs:
+                            reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i))
+                        continue
+
                     conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
                     
                     
@@ -716,7 +754,7 @@ class Analysis:
                         slv.add(*conds)
                         slv.add(vex_expr != dwarf_expr)
                         if slv.check() == unsat:
-                            reses.append(Result(curAddr, vex_expr.matchPos, 0))
+                            reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i))
                             continue
                     
                     if dwarf_addr != None:
@@ -724,13 +762,14 @@ class Analysis:
                         slv.add(*conds)
                         slv.add(vex_expr != dwarf_addr)
                         if slv.check() == unsat:
-                            reses.append(Result(curAddr, vex_expr.matchPos, -1))
+                            reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, -1, ty, irsb.addr, i))
 
 
                 
 
-                print(f"---- match {time.time()-startTime}")
-                startTime = time.time()
+                if showTime:
+                    print(f"---- match {time.time()-startTime}")
+                    startTime = time.time()
         
 
         return reses
