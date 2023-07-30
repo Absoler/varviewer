@@ -611,11 +611,16 @@ class Analysis:
         return None
 
 
-    def match(self, dwarf_expr:BitVecRef) -> list[Result]:
+    def match(self, dwarf_expr:BitVecRef, ty:int, useOffset:bool) -> list[Result]:
         dwarf_regs = extract_regs_from_z3(dwarf_expr)
         dwarf_regs = {reg.decl().name() for reg in dwarf_regs}
 
-        dwarf_addr = get_addr(dwarf_expr)
+        dwarf_addr = None
+        if ty == VALUE:
+            dwarf_addr = get_addr(dwarf_expr)
+        elif ty == MEMORY:
+            dwarf_addr = dwarf_expr
+            dwarf_expr = None
 
         nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(self.cfg.graph.nodes)
         slv = Solver()
@@ -636,8 +641,8 @@ class Analysis:
                     curAddr = ir.addr
                     continue
                 
-                preMatchTypeValue:int = MatchType.invalid.value
-                vex_dst_addr, vex_dst_val, vex_src_addr, vex_src_val = None, None, None, None
+                vex_expr:BitVecRef = None
+                vex_exprs:list[BitVecRef] = []
                 hasCandidate = False
                 
                 if isinstance(ir, pyvex.stmt.Put):
@@ -646,14 +651,18 @@ class Analysis:
                         usually mapped to an instruction such as `mov tmp, reg` 
                         or `add tmp-reg, reg`
                     '''
-                    preMatchTypeValue |= ( MatchType.src_value.value | MatchType.dst_value.value )
 
                     if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
-                        vex_src_val = self.get_z3_expr_from_vex(ir.data, irsb)
-                        vex_src_val = post_format(vex_src_val)
+                        print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
+                        vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
+                        vex_expr = post_format(vex_expr)
+                        setpos(vex_expr, MatchPosition.src_value)
+                        vex_exprs.append(vex_expr)
 
-                    vex_dst_val = BitVec(get_base_name_vex(ir.offset), 64)
-                    
+
+                    vex_expr = BitVec(get_base_name_vex(ir.offset), 64)
+                    setpos(vex_expr, MatchPosition.dst_value)
+                    vex_exprs.append(vex_expr)
                     hasCandidate = True
                 
                 elif isinstance(ir, pyvex.stmt.Store):
@@ -661,68 +670,64 @@ class Analysis:
 
 
                     '''
-                    preMatchTypeValue |= ( MatchType.dst_addr.value | MatchType.src_value.value )
 
                     if isinstance(ir.addr, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.addr.tmp]):
-                        vex_dst_addr = self.get_z3_expr_from_vex(ir.addr, irsb)
-                        vex_dst_addr = post_format(vex_dst_addr)
+                        print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.addr.tmp]}")
+                        vex_expr = self.get_z3_expr_from_vex(ir.addr, irsb)
+                        vex_expr = post_format(vex_expr)
+                        setpos(vex_expr, MatchPosition.dst_addr)
+                        vex_exprs.append(vex_expr)
                         hasCandidate = True
 
                     if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
-                        vex_src_val = self.get_z3_expr_from_vex(ir.data, irsb)
-                        vex_src_val = post_format(vex_src_val)
+                        print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
+                        vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
+                        vex_expr = post_format(vex_expr)
+                        setpos(vex_expr, MatchPosition.src_value)
+                        vex_exprs.append(vex_expr)
                         hasCandidate = True
 
                 elif isinstance(ir, pyvex.stmt.WrTmp) and isinstance(ir.data, pyvex.expr.Load):
                     ''' tmp = load(addr)
                     '''
-                    preMatchTypeValue |= MatchType.src_addr.value
 
                     if isinstance(ir.data.addr, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.addr.tmp]):
-                        vex_src_addr = self.get_z3_expr_from_vex(ir.data.addr, irsb)
-                        vex_src_addr = post_format(vex_src_addr)
+                        print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.addr.tmp]}")
+                        vex_expr = self.get_z3_expr_from_vex(ir.data.addr, irsb)
+                        vex_expr = post_format(vex_expr)
+                        setpos(vex_expr, MatchPosition.src_addr)
+                        vex_exprs.append(vex_expr)
                         hasCandidate = True
+
+                print(f"---- summary {time.time()-startTime}")
+                startTime = time.time()
 
                 if not hasCandidate:
                     continue
                 
-                print(f"---- summary {time.time()-startTime}")
-                startTime = time.time()
                 
-                slv.reset()
-                slv.add(loads_cond)
-                slv.add(loadu_cond)
-                if (preMatchTypeValue & MatchType.src_value.value) and vex_src_val != None:
-                    conds = make_reg_type_conds(vex_src_val)
-                    slv.add(conds)
-                    slv.add(dwarf_expr != vex_src_val)
+                for vex_expr in vex_exprs:
+                    conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
+                    
+                    
+                    
+                    if dwarf_expr != None:
+                        slv.reset()
+                        slv.add(*conds)
+                        slv.add(vex_expr != dwarf_expr)
+                        if slv.check() == unsat:
+                            reses.append(Result(curAddr, vex_expr.matchPos, 0))
+                            continue
+                    
+                    if dwarf_addr != None:
+                        slv.reset()
+                        slv.add(*conds)
+                        slv.add(vex_expr != dwarf_addr)
+                        if slv.check() == unsat:
+                            reses.append(Result(curAddr, vex_expr.matchPos, -1))
 
-                    if slv.check() == unsat:
-                        reses.append(Result(curAddr, MatchType.src_value))
+
                 
-                if (preMatchTypeValue & MatchType.src_addr.value) and vex_src_addr != None:
-                    conds = make_reg_type_conds(vex_src_addr)
-                    slv.add(conds)
-                    slv.add(dwarf_expr != vex_src_addr)
-
-                    if slv.check() == unsat:
-                        reses.append(Result(curAddr, MatchType.src_addr))
-
-                if (preMatchTypeValue & MatchType.dst_value.value) and vex_dst_val != None:
-                    conds = make_reg_type_conds(vex_dst_val)
-                    slv.add(conds)
-                    slv.add(dwarf_expr != vex_dst_val)
-
-                    if slv.check() == unsat:
-                        reses.append(Result(curAddr, MatchType.dst_value))
-                
-                if (preMatchTypeValue & MatchType.dst_addr.value) and vex_dst_addr != None:
-                    conds = make_reg_type_conds(vex_dst_addr)
-                    slv.add(conds)
-                    slv.add(dwarf_expr != vex_dst_addr)
-
-                    if slv.check() == unsat:
-                        reses.append(Result(curAddr, MatchType.dst_addr))
 
                 print(f"---- match {time.time()-startTime}")
                 startTime = time.time()

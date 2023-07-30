@@ -8,6 +8,7 @@ import ctypes
 from dwarf_vex_map import *
 from z3 import *
 from hint import Hint
+from util import *
 
 from libanalysis import load_funcs
 
@@ -141,7 +142,11 @@ class Expression:
 
 
     def is_const(self):
-        return self.regs == None and self.mem == None and not self.empty and self.valid
+        res = (self.regs == None and self.mem == None and not self.empty)
+        if self.hasChild:
+            res = res and self.sub1.is_const()
+            res = res and self.sub2.is_const() if self.sub2 != None else res
+        return res
     
     def is_reg(self):
         return self.regs is not None and self.offset == 0 and self.mem == None
@@ -368,7 +373,7 @@ class AddressExp(Expression):
 
 
     def get_Z3_expr(self, hint: Hint) -> BitVecRef:
-        if self.type == 1:
+        if self.type == REGISTER:
             return BitVec(dwarf_reg_names[self.reg], 64)
         return super().get_Z3_expr(hint)
 
@@ -607,7 +612,7 @@ if __name__ == "__main__":
             
             # reg relative to this var's loc expr
             rel_regs = [addrExp.reg] if addrExp.type == 1 else []
-            if addrExp.type==0 and addrExp.regs:
+            if addrExp.type==MEMORY and addrExp.regs:
                 assert(len(list(addrExp.regs.keys()))<=2)
                 rel_regs.extend(list(addrExp.regs.keys()))
 

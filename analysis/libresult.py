@@ -1,44 +1,55 @@
 import json
 from enum import Enum
-
+from z3 import *
 '''
     ---------- final result format ----------
 
     [
         {
             "addr" : address of mapped instruction
-            "matchTy" : match type
+            "matchPos" : match position
             "offset" : offset from match point
             "expression" : match object, may be lldb or gdb's supported format
         }
     ]
 '''
 
-''' all match types
+''' all possible match position
 '''
-class MatchType(Enum):
+class MatchPosition(Enum):
     invalid = 0
     src_value = 1
     src_addr = 2
     dst_value = 4
     dst_addr = 8
 
+def isAddr(pos:MatchPosition) -> bool:
+    return pos == MatchPosition.src_addr or pos == MatchPosition.dst_addr
+
+def setpos(z3Expr:ExprRef, pos:MatchPosition = MatchPosition.invalid):
+    setattr(z3Expr, "matchPos", pos)
 
 class Result:
-    def __init__(self, addr:int, matchTy:MatchType) -> None:
+    def __init__(self, addr:int, matchPos:MatchPosition, indirect) -> None:
         self.addr:int = addr
-        self.matchTy:MatchType = matchTy
+        self.name:str = ""
+        self.matchPos:MatchPosition = matchPos
+        ''' -1, 0
+            match to &v, v
+        '''
+        self.indirect:int = indirect
         self.offset:int = 0
         self.expression = None
     
     def keys(self):
-        return ('addr', 'matchTy', 'offset', 'expression', )
+        return ('addr', 'matchPos', 'indirect', 'offset', 'expression', )
     
     def __getitem__(self, item):
         return getattr(self, item)
     
     def __str__(self) -> str:
-        return f"0x{self.addr:X} {self.matchTy.name}"
+        return f"0x{self.addr:X} name:{self.name}    pos:{self.matchPos.name} indirect level:{self.indirect}"
     
-    def update(self, base_addr:int):
+    def update(self, base_addr:int, name:str):
         self.addr += base_addr
+        self.name = name

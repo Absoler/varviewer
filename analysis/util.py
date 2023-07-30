@@ -7,6 +7,15 @@ from dwarf_iced_map import *
 from z3 import *
 import re
 
+# ----------------------------------------
+#
+#   dwarf utility functions
+#
+# ----------------------------------------
+
+MEMORY = 0
+REGISTER = 1
+VALUE = 2
 
 # ----------------------------------------
 #

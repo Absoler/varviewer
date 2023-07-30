@@ -28,6 +28,7 @@ if __name__ == "__main__":
     parser.add_argument("binPath")
     parser.add_argument("jsonPath")
     parser.add_argument("-uC","--useCache", action='store_true')
+    parser.add_argument("-uO","--useOffset", action="store_true")
     args = parser.parse_args()
 
     mgr = VarMgr()
@@ -67,7 +68,7 @@ if __name__ == "__main__":
 
     # start analysis
 
-    
+    all_reses = []
     for piece_num in range(mgr.local_ind, len(mgr.vars)):
         
         startTime = time.time()
@@ -75,9 +76,15 @@ if __name__ == "__main__":
             break
         if piece_num < 100000:
             continue
-        
+        if piece_num > 100050:
+            break
+
         piece_name = tempPath + 'piece_' + str(piece_num)
         addrExp = mgr.vars[piece_num]
+
+        if addrExp.is_const():
+            continue
+
         startpc, endpc = addrExp.startpc, addrExp.endpc
 
         if not useCache or not os.path.exists(piece_name):     
@@ -91,10 +98,11 @@ if __name__ == "__main__":
             if ret != 0:
                 continue
         
-        
+        print(f"piece num {piece_num}")
+
         piece_file = open(piece_name, "rb")
 
-        print(f"piece num {piece_num}")
+        
 
         print(f"-- open piece {time.time()-startTime}")
         startTime = time.time()
@@ -114,18 +122,20 @@ if __name__ == "__main__":
         print(f"-- analysis {time.time()-startTime}")
         startTime = time.time()
 
-        reses = analysis.match(dwarf_expr)
+        reses = analysis.match(dwarf_expr, addrExp.type, args.useOffset)
         
         print(f"-- summary vex and match {time.time()-startTime}")
         startTime = time.time()
         
 
         for res in reses:
-            res.update(startpc)
-            print(res)
+            res.update(startpc, addrExp.name)
 
         piece_file.close()
         analysis.clear()
 
-        
+        all_reses.extend(reses)
+    
+    for res in all_reses:
+        print(res)
 
