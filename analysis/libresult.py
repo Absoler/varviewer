@@ -2,6 +2,7 @@ import json
 from enum import Enum
 from z3 import *
 from util import *
+from iced_x86 import *
 '''
     ---------- final result format ----------
 
@@ -24,8 +25,12 @@ class MatchPosition(Enum):
     dst_value = 4
     dst_addr = 8
 
-def isAddr(pos:MatchPosition) -> bool:
+def isAddrPos(pos:MatchPosition) -> bool:
     return pos == MatchPosition.src_addr or pos == MatchPosition.dst_addr
+
+def isDestPos(pos:MatchPosition) -> bool:
+    return pos == MatchPosition.dst_value or pos == MatchPosition.dst_addr
+
 
 def setpos(z3Expr:ExprRef, pos:MatchPosition = MatchPosition.invalid):
     setattr(z3Expr, "matchPos", pos)
@@ -41,12 +46,12 @@ class Result:
         self.indirect:int = indirect
         self.dwarfType:DwarfType = dwarfType
         self.offset:int = 0
-        self.expression = None
+        self.expression = ""
         self.irsb_addr = irsb_addr
         self.ind = ind
     
     def keys(self):
-        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'offset', )
+        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'offset', 'expression')
     
     def __getitem__(self, item):
         if item == "matchPos":
@@ -62,3 +67,76 @@ class Result:
         self.addr = piece_addrs[self.addr]
         self.name = name
         self.piece_num = piece_num
+
+    def construct_expression(self, insn:Instruction) -> bool:
+        ''' only use the target operand, because it's confirmed
+            trust op0 in iced_x86 is target
+        '''
+        
+        ''' if `src_addr`, it means op1 must be the source, 
+            not mixed with other
+
+        '''
+        
+        if isDestPos(self.matchPos):
+            if insn.op_count < 1:
+                return False
+            if insn.op0_kind == OpKind.MEMORY:
+                # `disp`
+                address = f"{insn.memory_displacement}" if insn.memory_displacement != 0 else ""
+                # `disp + baseReg`
+                address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
+                # `disp + baseReg + scale*indexReg`
+                address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
+                
+                if self.matchPos == MatchPosition.dst_value:
+                    self.expression = f"*({address})"
+                    self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else "0"
+            
+            elif insn.op0_kind == OpKind.REGISTER:
+                self.expression = f"${register_to_str[insn.op0_register].lower()}"
+            else:
+                print(f"can't convert opkind {opKind_to_str[insn.op0_kind]} to str", file=sys.stderr)
+                return False
+        
+        else:
+            if insn.op_count<2:
+                return False
+            if self.matchPos == MatchPosition.src_addr:
+                ''' matchPos is `src_addr`, then the match must not mix src and dst
+                    operand,
+                '''
+                assert(insn.op1_kind == OpKind.MEMORY)
+                # `disp`
+                address = f"{insn.memory_displacement}" if insn.memory_displacement != 0 else "0"
+                # `disp + baseReg`
+                address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
+                # `disp + baseReg + scale*indexReg`
+                address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
+                
+                self.expression = address
+                
+            else:
+                ''' for src_value, we record the just like dst_value,
+                    because we don't know whether src is mixed with dst
+                '''
+                if insn.op0_kind == OpKind.MEMORY:
+                    # `disp`
+                    address = f"{insn.memory_displacement}" if insn.memory_displacement != 0 else ""
+                    # `disp + baseReg`
+                    address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
+                    # `disp + baseReg + scale*indexReg`
+                    address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
+                    
+                    self.expression = f"*({address})"
+                    self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else ""
+                
+                elif insn.op0_kind == OpKind.REGISTER:
+                    self.expression = f"${register_to_str[insn.op0_register].lower()}"
+                else:
+                    print(f"can't convert opkind {opKind_to_str[insn.op0_kind]} to str", file=sys.stderr)
+                    return False
+                
+        return True
+        
+            

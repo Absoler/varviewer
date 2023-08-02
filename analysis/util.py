@@ -1,4 +1,10 @@
 #!/usr/local/bin/python3
+
+# ----------------------------------------
+#   this module doesn't depend on any
+#   self-implemented things
+# ----------------------------------------
+
 import angr, pyvex
 import sys
 import copy
@@ -6,10 +12,25 @@ from dwarf_vex_map import *
 from dwarf_iced_map import *
 from z3 import *
 import re
+from iced_x86 import *
 
 # ----------------------------------------
 #
-#   dwarf utility functions
+#   iced_x86 utility
+#
+# ----------------------------------------
+
+code_to_str = {Code.__dict__[key]:key for key in Code.__dict__ if isinstance(Code.__dict__[key], int)}
+mnemoic_to_str = {Mnemonic.__dict__[key]:key for key in Mnemonic.__dict__ if isinstance(Mnemonic.__dict__[key], int)}
+opKind_to_str = {OpKind.__dict__[key]:key for key in OpKind.__dict__ if isinstance(OpKind.__dict__[key], int)}
+memorySize_to_str = {MemorySize.__dict__[key]:key for key in MemorySize.__dict__ if isinstance(MemorySize.__dict__[key], int)}
+register_to_str = {Register.__dict__[key]:key for key in Register.__dict__ if isinstance(Register.__dict__[key], int)}
+
+memorySize_to_int = { key:8 * ( 1<< ((key-1) if key <= 7 else (key-8)) ) for key in range(1, 15)}
+
+# ----------------------------------------
+#
+#   dwarf utility
 #
 # ----------------------------------------
 
@@ -20,13 +41,14 @@ class DwarfType(Enum):
 
 # ----------------------------------------
 #
-#   vex utility functions
+#   vex utility
 #
 # ----------------------------------------
 
 un_cast_re = re.compile(r"Iop_(F|V)?(?P<srcsize>\d+)(U|S|HI|LO)?to(F|V)?(?P<dstsize>\d+)")
 bin_cast_re = re.compile(r"Iop_(F|V)?(?P<srcsize>\d+)(HL)to(F|V)?(?P<dstsize>\d+)")
-cmpF_re = re.compile(r"Iop_(Cas|Exp)?Cmp(F)(?P<size>\d+)$")
+cmpF_re = re.compile(r"Iop_Cmp(F)(?P<size>\d+)$")
+cas_exp_cmp_re = re.compile(r"Iop_(Cas|Exp)Cmp(NE|EQ)(?P<size>\d+)")
 ''' float conversion, take an extra 32-bit rounding mode arg
 '''
 f_cast_re = re.compile(r"Iop_(F|I)(?P<srcsize>\d+)(U|S)?to(F|I)(?P<dstsize>\d+)(U|S)?")
@@ -59,7 +81,7 @@ def get_base_name_vex(regOff:int):
 
 # ----------------------------------------
 #
-#   Z3 utility functions
+#   Z3 utility
 #
 # ----------------------------------------
 

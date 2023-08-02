@@ -34,6 +34,7 @@ if __name__ == "__main__":
     parser.add_argument("-oG", "--onlyGen", action="store_true", help="only generate piece(s) without analysis")
     parser.add_argument("-sT", "--showTime", action="store_true", help="show time statistics")
     parser.add_argument("-o", "--output", help="specify the output json file", default="")
+    parser.add_argument("-tP", "--tempPath", help="specify the tmp path", default="/tmp/varviewer")
     args = parser.parse_args()
 
     mgr = VarMgr()
@@ -61,7 +62,7 @@ if __name__ == "__main__":
     mgr.load(jsonPath)
 
     # prepare pieces
-    tempPath = "/tmp/varviewer/"
+    tempPath = args.tempPath
     useCache = args.useCache
     ''' if set `useCache`, means we have run this already
     '''
@@ -89,7 +90,7 @@ if __name__ == "__main__":
 
         ''' filter imme out
         '''
-        if addrExp.is_const():
+        if addrExp.is_const() or addrExp.empty:
             continue
 
         startpc, endpc = addrExp.startpc, addrExp.endpc
@@ -153,12 +154,15 @@ if __name__ == "__main__":
 
         for res in reses:
             res.update(piece_addrs, addrExp.name, piece_num)
+            success = res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
+            if success:
+                all_reses.append(res)
 
         piece_file.close()
         piece_addr_file.close()
         analysis.clear()
 
-        all_reses.extend(reses)
+        
     
 
     ''' output result

@@ -376,7 +376,7 @@ class AddressExp(Expression):
 
 
     def get_Z3_expr(self, hint: Hint) -> BitVecRef:
-        if self.type == DwarfType.REGISTER:
+        if self.type == DwarfType.REGISTER.value:
             return BitVec(dwarf_reg_names[self.reg], 64)
         return super().get_Z3_expr(hint)
 
@@ -615,7 +615,7 @@ if __name__ == "__main__":
             
             # reg relative to this var's loc expr
             rel_regs = [addrExp.reg] if addrExp.type == 1 else []
-            if addrExp.type==DwarfType.MEMORY and addrExp.regs:
+            if addrExp.type==DwarfType.MEMORY.value and addrExp.regs:
                 assert(len(list(addrExp.regs.keys()))<=2)
                 rel_regs.extend(list(addrExp.regs.keys()))
 

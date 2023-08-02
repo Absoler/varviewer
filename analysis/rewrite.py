@@ -5,9 +5,7 @@ from elftools.elf.elffile import ELFFile
 import angr
 import os
 from networkx.drawing.nx_pydot import write_dot
-
-code_to_str = {Code.__dict__[key]:key for key in Code.__dict__ if isinstance(Code.__dict__[key], int)}
-mnemoic_to_str = {Mnemonic.__dict__[key]:key for key in Mnemonic.__dict__ if isinstance(Mnemonic.__dict__[key], int)}
+from util import *
 
 def getBranch(ins:Instruction):
     if not (code_to_str[ins.code].startswith("JMP") or\

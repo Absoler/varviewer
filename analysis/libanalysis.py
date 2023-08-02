@@ -486,6 +486,11 @@ class Analysis:
                 exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return BitVec("cmpf", 32)
 
+            elif cas_exp_cmp_re.match(irExpr.op):
+                exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
+                size = int(cas_exp_cmp_re.match(irExpr.op).group("size"))
+                return BitVec("cas_exp", size)
+
             elif irExpr.op.startswith("Iop_CmpEQ"):
                 exp1, exp2 = self.get_z3_expr_from_vex(irExpr.args[0], irsb), self.get_z3_expr_from_vex(irExpr.args[1], irsb)
                 return If(exp1==exp2, BitVecVal(1, 1), BitVecVal(0, 1))

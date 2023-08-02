@@ -15,10 +15,10 @@ write_dot(cfg.graph, binPath+".dot")
 os.system(f"dot {binPath}.dot -T png -o {binPath}.png")
 
 mgr = VarMgr()
-if len(sys.argv) > 2:
+if len(sys.argv) > 3:
     jsonPath = sys.argv[2]
     mgr.load(jsonPath)
-    addrExp = mgr.vars[0]
+    addrExp = mgr.vars[int(sys.argv[3])]
     addrExp.is_const()
 
     hint = Hint()
