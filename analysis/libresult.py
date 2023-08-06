@@ -83,11 +83,12 @@ class Result:
                 return False
             if insn.op0_kind == OpKind.MEMORY:
                 # `disp`
-                address = f"{insn.memory_displacement}" if insn.memory_displacement != 0 else ""
-                # `disp + baseReg`
-                address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
-                # `disp + baseReg + scale*indexReg`
-                address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
+                address = f"{insn.memory_displacement}"
+                if not insn.is_ip_rel_memory_operand:
+                    # `disp + baseReg`
+                    address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
+                    # `disp + baseReg + scale*indexReg`
+                    address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
                 
                 if self.matchPos == MatchPosition.dst_value:
                     self.expression = f"*({address})"
@@ -108,7 +109,7 @@ class Result:
                 '''
                 assert(insn.op1_kind == OpKind.MEMORY)
                 # `disp`
-                address = f"{insn.memory_displacement}" if insn.memory_displacement != 0 else "0"
+                address = f"{insn.memory_displacement}"
                 # `disp + baseReg`
                 address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
                 # `disp + baseReg + scale*indexReg`
@@ -122,11 +123,12 @@ class Result:
                 '''
                 if insn.op0_kind == OpKind.MEMORY:
                     # `disp`
-                    address = f"{insn.memory_displacement}" if insn.memory_displacement != 0 else ""
-                    # `disp + baseReg`
-                    address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
-                    # `disp + baseReg + scale*indexReg`
-                    address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
+                    address = f"{insn.memory_displacement}"
+                    if not insn.is_ip_rel_memory_operand:
+                        # `disp + baseReg`
+                        address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
+                        # `disp + baseReg + scale*indexReg`
+                        address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
                     
                     self.expression = f"*({address})"
                     self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else ""

@@ -122,6 +122,17 @@ def post_format(z3_expr:ExprRef):
 
     return z3_expr
 
+def has_load(exp:BitVecRef) -> bool:
+    res:bool = exp.decl().name().startswith("load")
+    for child in exp.children():
+        res = has_load(child) or res
+    return res
+
+def has_offset(exp:BitVecRef) -> bool:
+    res:bool = isinstance(exp, BitVecNumRef) and exp.as_long() != 0
+    for child in exp.children():
+        res = has_offset(child) or res
+    return res
 
 def isReg(exp:BitVecRef) -> bool:
     return exp.decl().name() in vex_reg_size_codes

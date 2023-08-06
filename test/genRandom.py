@@ -1,3 +1,4 @@
+#!/usr/local/bin/python3
 import os, sys
 
 ''' generate random C source files with csmith
@@ -11,8 +12,8 @@ csmith_root = "../../csmith-csmith-2.3.0"
 csmith = f"{csmith_root}/src/csmith"
 csmith_include = f"{csmith_root}/runtime"
 
-compiler = "gcc"
-compiler_options:str = "-g -O2"
+compiler = "gcc-12.1"
+compiler_options:str = "-gdwarf-4 -O2"
 
 genCount = int(sys.argv[1])
 outputDir = os.path.normpath(sys.argv[2])

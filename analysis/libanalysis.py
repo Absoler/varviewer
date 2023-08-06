@@ -654,7 +654,7 @@ class Analysis:
 
     def match(self, dwarf_expr:BitVecRef, ty:DwarfType, useOffset:bool, showTime:bool=False) -> list[Result]:
         dwarf_regs = extract_regs_from_z3(dwarf_expr)
-        dwarf_regs = {reg.decl().name() for reg in dwarf_regs}
+        dwarf_regs_names = {reg.decl().name() for reg in dwarf_regs}
 
         dwarf_addr = None
         if ty == DwarfType.VALUE:
@@ -699,7 +699,7 @@ class Analysis:
                     if not is_useful_reg(ir.offset):
                         continue
 
-                    if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
+                    if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs_names.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
                         # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
                         vex_expr = post_format(vex_expr)
@@ -718,7 +718,7 @@ class Analysis:
 
                     '''
 
-                    if isinstance(ir.addr, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.addr.tmp]):
+                    if isinstance(ir.addr, pyvex.expr.RdTmp) and dwarf_regs_names.issubset(tempFactBlock.temp_regs_map[ir.addr.tmp]):
                         # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.addr.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.addr, irsb)
                         vex_expr = post_format(vex_expr)
@@ -726,7 +726,7 @@ class Analysis:
                         vex_exprs.append(vex_expr)
                         hasCandidate = True
 
-                    if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
+                    if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs_names.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
                         # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
                         vex_expr = post_format(vex_expr)
@@ -738,7 +738,7 @@ class Analysis:
                     ''' tmp = load(addr)
                     '''
 
-                    if isinstance(ir.data.addr, pyvex.expr.RdTmp) and dwarf_regs.issubset(tempFactBlock.temp_regs_map[ir.data.addr.tmp]):
+                    if isinstance(ir.data.addr, pyvex.expr.RdTmp) and dwarf_regs_names.issubset(tempFactBlock.temp_regs_map[ir.data.addr.tmp]):
                         # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.addr.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.data.addr, irsb)
                         vex_expr = post_format(vex_expr)
@@ -759,8 +759,9 @@ class Analysis:
                     '''
                     if ty == DwarfType.REGISTER:
                         vex_regs = extract_regs_from_z3(vex_expr)
-                        vex_regs = {reg.decl().name() for reg in vex_regs}
-                        if vex_regs == dwarf_regs:
+                        vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
+                        dwarf_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in dwarf_regs}
+                        if vex_regs_sizeNames == dwarf_regs_sizeNames and not has_load(vex_expr) and not has_offset(vex_expr):
                             reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i))
                         continue
 

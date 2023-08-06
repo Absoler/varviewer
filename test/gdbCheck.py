@@ -35,12 +35,19 @@ class CheckVariablesCommand(gdb.Command):
         
 
     def invoke(self, args, from_tty):
+        ''' args[0]: match information json file path
+            args[1]: output testing result file path
+        '''
         args = gdb.string_to_argv(args)
         self.load(args[0])
+        self.output_file = open(args[1], "a")
 
         correct_cnt:int = 0
+        wrong_cnt:int = 0
         hit_cnt:int = 0
         fail_oracle_cnt:int = 0
+        real_sum:int = 0
+        outputContent:str = ""
 
         def get_pc_addr():
             return int(gdb.parse_and_eval("$pc"))
@@ -66,9 +73,11 @@ class CheckVariablesCommand(gdb.Command):
                     our:int = int(gdb.parse_and_eval(var["expression"]))
                     if oracle == our:
                         correct_cnt += 1
-                        print(f"### correct at {var['addr']:X} our:{our} oracle:{oracle}")
+                        print(f"\n### correct at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
                     else:
-                        print(f"### wrong at {var['addr']:X} our:{our} oracle:{oracle}")
+                        wrong_cnt += 1
+                        outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}\n"
+                        print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
 
             if not (len(records) > 0 and get_pc_addr() in self.addrs):
                 gdb.execute("c")
@@ -81,13 +90,13 @@ class CheckVariablesCommand(gdb.Command):
                 name:str = var["name"]
                 matchPos:int = var["matchPos"]
                 expression:str = var["expression"]
-                print(expression)
-
+                print(f"matching {name} {expression} ...")
+                real_sum += 1
                 try:
                     oracle:int = get_var_value_by_name(name) if var["indirect"] == 0 else get_var_addr_by_name(name)
                 except Exception:
                     fail_oracle_cnt += 1
-                    print(f"### fail get oracle of {name} at 0x{var['addr']:X}")
+                    print(f"\n### fail get oracle of {name} at 0x{var['addr']:X}")
                     continue
 
                 if matchPos == 1:
@@ -99,20 +108,21 @@ class CheckVariablesCommand(gdb.Command):
                     our:int = int(gdb.parse_and_eval(expression))
                     if our == oracle:
                         correct_cnt += 1
-                        print(f"### correct at {var['addr']:X} our:{our} oracle:{oracle}")
+                        print(f"\n### correct at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
                     else:
-                        print(f"### wrong at {var['addr']:X} our:{our} oracle:{oracle}")
+                        wrong_cnt += 1
+                        outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}\n"
+                        print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
 
             if hit_cnt == len(self.addrs):
                 break
 
-        print(f"correct {correct_cnt} / {self.sum-fail_oracle_cnt}")
+        outputContent = f"{args[0]} correct {correct_cnt} / {correct_cnt+wrong_cnt}" + outputContent
+        print(outputContent, file=self.output_file)
+        self.output_file.close()
             
 
         
 
-
-
-       
 # Register the GDB command
 CheckVariablesCommand()
