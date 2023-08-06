@@ -1,5 +1,8 @@
 #include "util.h"
 #include <libdwarf-0/libdwarf.h>
+#include <cstdio>
+
+using namespace std;
 
 Dwarf_Unsigned get_const_u(Dwarf_Half form, Dwarf_Attribute attr, Dwarf_Error *err){
     /*
@@ -84,3 +87,27 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name){
     }
     return 0;
 }
+
+
+void printindent(int indent){
+    for(int _=0;_<indent;++_)
+        printf("\t");
+}
+
+string addindent(int indent){
+    string res = "";
+    for(int _=0;_<indent;++_)
+        res += '\t';
+    return res;
+}
+
+template<typename T>
+string toHex(T v){
+    static const char* digits = "0123456789ABCDEF";
+    int size = sizeof(T)<<1;
+    string res(size, '0');
+    for (size_t i=0, j=(size-1)*4 ; i<size; ++i,j-=4)
+        res[i] = digits[(v>>j) & 0x0f];
+    return res;
+}
+template string toHex(Dwarf_Unsigned v);

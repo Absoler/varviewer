@@ -10,7 +10,6 @@
 #include <vector>
 #include <queue>
 
-#include "ranges.h"
 #include "varLocator.h"
 
 
@@ -31,28 +30,7 @@ json allJson = json::array();
 
 // statistic variables
 int varNoLocation = 0;
-
-inline void printindent(int indent){
-    for(int _=0;_<indent;++_)
-        printf("\t");
-}
-
-inline string addindent(int indent){
-    string res = "";
-    for(int _=0;_<indent;++_)
-        res += '\t';
-    return res;
-}
-
-template<typename T>
-string toHex(T v){
-    static const char* digits = "0123456789ABCDEF";
-    int size = sizeof(T)<<1;
-    string res(size, '0');
-    for (size_t i=0, j=(size-1)*4 ; i<size; ++i,j-=4)
-        res[i] = digits[(v>>j) & 0x0f];
-    return res;
-}
+Statistics statistics;
 
 
 int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range range){
@@ -90,17 +68,9 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range r
     addr.is_variable = (tag == DW_TAG_variable);
 
     if(useJson){
-    // addr.output();
         json addrJson = createJsonforAddress(addr);
         allJson.push_back(std::move(addrJson));
-        // auto addrStr = addrJson.dump(4);
-        // if (oFileStr!="") {
-        //     fstream out(oFileStr.c_str(), ios::app);
-        //     out << addrStr <<endl;
-        //     out.close();
-        // }else{
-        //     cout << addrStr << endl;
-        // }
+        
         
     }else{
         addr.output();
@@ -205,88 +175,95 @@ int print_raw_location(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc
         res = 1;
     else
         res = dwarf_get_loclist_c(loc_attr, &loclist_head, &locentry_len, &err);
-    // printf(" %s", (res==DW_DLV_OK?" get success! ":" fail "));
-    if(res==DW_DLV_OK){
-        string ops_for_complexOnly;
-        bool isMultiLoc = true;
-        int bored_cnt = 0;
-        for(Dwarf_Unsigned i = 0; i<locentry_len; i++){
-            Dwarf_Small lkind=0, lle_value=0;
-            Dwarf_Unsigned rawval1=0, rawval2=0;
-            Dwarf_Bool debug_addr_unavailable = false;
-            Dwarf_Addr lopc = 0;
-            Dwarf_Addr hipc = 0;
-            Dwarf_Unsigned loclist_expr_op_count = 0;
-            Dwarf_Locdesc_c locdesc_entry = 0;
-            Dwarf_Unsigned expression_offset = 0;
-            Dwarf_Unsigned locdesc_offset = 0;
+    
+    simple_handle_err(res)
+    statistics.addVar();
+    
+    string ops_for_complexOnly;
+    bool isMultiLoc = true;
+    int bored_cnt = 0;
+    for(Dwarf_Unsigned i = 0; i<locentry_len; i++){
+        Dwarf_Small lkind=0, lle_value=0;
+        Dwarf_Unsigned rawval1=0, rawval2=0;
+        Dwarf_Bool debug_addr_unavailable = false;
+        Dwarf_Addr lopc = 0;
+        Dwarf_Addr hipc = 0;
+        Dwarf_Unsigned loclist_expr_op_count = 0;
+        Dwarf_Locdesc_c locdesc_entry = 0;
+        Dwarf_Unsigned expression_offset = 0;
+        Dwarf_Unsigned locdesc_offset = 0;
 
-            res = dwarf_get_locdesc_entry_d(loclist_head, i,
-            &lle_value,
-            &rawval1, &rawval2,
-            &debug_addr_unavailable,
-            &lopc,&hipc,
-            &loclist_expr_op_count,
-            &locdesc_entry,
-            &lkind,
-            &expression_offset,
-            &locdesc_offset,
-            &err);
+        res = dwarf_get_locdesc_entry_d(loclist_head, i,
+        &lle_value,
+        &rawval1, &rawval2,
+        &debug_addr_unavailable,
+        &lopc,&hipc,
+        &loclist_expr_op_count,
+        &locdesc_entry,
+        &lkind,
+        &expression_offset,
+        &locdesc_offset,
+        &err);
 
-            bool isMultiExpr = true;
-            bool isBoredExpr = false;
-            if(res==DW_DLV_OK){
-                // get entry successfully
-                Dwarf_Small op = 0;
-                int opres;
-                if(!onlyComplex){
-                    printf("\n");
-                    printindent(indent);
-                    printf("--- exp start %llx %llx\n", lopc, hipc);
-                }
-                if(loclist_expr_op_count==1){
-                    isMultiExpr = false;
-                }
-                if(lopc == hipc && loclist_expr_op_count>0){
-                    isBoredExpr = true;
-                }
-                ops_for_complexOnly += '\n' + addindent(indent) + "--- exp start " + toHex(lopc) + " " + toHex(hipc) + "\n";
-                for(Dwarf_Unsigned j = 0; j<loclist_expr_op_count; j++){
-                    Dwarf_Unsigned op1, op2, op3, offsetForBranch;
-                    bool 
-                    opres = dwarf_get_location_op_value_c(locdesc_entry, j, &op, &op1, &op2, &op3, &offsetForBranch, &err);
-                    if(opres == DW_DLV_OK){
-                        const char *op_name;
-                        res = dwarf_get_OP_name(op, &op_name);
-                        // printf("\n");
-                        if(!onlyComplex){
-                            printindent(indent);
-                            printf("%s ", op_name);
-                            printf(" %llx %llx %llx %llx\n", op1, op2, op3, offsetForBranch);
-                            if(op==DW_OP_entry_value||op==DW_OP_GNU_entry_value){
-                                tempEvaluator.dbg = dbg;
-                                tempEvaluator.parse_dwarf_block((Dwarf_Ptr)op2, op1, true);
-                            }
-                            if(op==DW_OP_fbreg){
-                                printf("DW_OP_fbreg_range %llu %llu\n", lopc, hipc);
-                            }
-                        }
-                        if(j==1 && loclist_expr_op_count == 2 && op == DW_OP_stack_value){
-                            isBoredExpr = true;
-                        }
-                        ops_for_complexOnly += addindent(indent) + string(op_name) + " " + toHex(op1) + " " + toHex(op2) + " " + toHex(op3) + "\n";
-                    }
-                }
-            }
-            isMultiLoc = isMultiLoc && isMultiExpr;
-            if(isBoredExpr){
-                bored_cnt++;
-            }
+        simple_handle_err(res)
+
+        bool isSingleExpr = false;
+        bool isEmptyExpr = false;
+
+        Dwarf_Small op = 0;
+        if(!onlyComplex){
+            printf("\n");
+            printindent(indent);
+            printf("--- exp start %llx %llx\n", lopc, hipc);
         }
-        if(onlyComplex && isMultiLoc && bored_cnt < locentry_len){
-            cout<<ops_for_complexOnly<<endl;
+        if(loclist_expr_op_count == 1){
+            isSingleExpr = true;
+        }
+        if(lopc == hipc && loclist_expr_op_count>0){
+            isEmptyExpr = true;
+        }
+        ops_for_complexOnly += '\n' + addindent(indent) + "--- exp start " + toHex(lopc) + " " + toHex(hipc) + "\n";
+        for(Dwarf_Unsigned j = 0; j<loclist_expr_op_count; j++){
+            Dwarf_Unsigned op1, op2, op3, offsetForBranch;
+                
+            ret = dwarf_get_location_op_value_c(locdesc_entry, j, &op, &op1, &op2, &op3, &offsetForBranch, &err);
+            simple_handle_err(ret)
+
+            // record operator
+            statistics.addOp(op);
+
+            const char *op_name;
+            res = dwarf_get_OP_name(op, &op_name);
+            
+            if(!onlyComplex){
+                printindent(indent);
+                printf("%s ", op_name);
+                printf(" %llx %llx %llx %llx\n", op1, op2, op3, offsetForBranch);
+                if(op==DW_OP_entry_value||op==DW_OP_GNU_entry_value){
+                    tempEvaluator.dbg = dbg;
+                    tempEvaluator.parse_dwarf_block((Dwarf_Ptr)op2, op1, true);
+                }
+                if(op==DW_OP_fbreg){
+                    printf("DW_OP_fbreg_range %llu %llu\n", lopc, hipc);
+                }
+            }
+            if(j==1 && loclist_expr_op_count == 2 && op == DW_OP_stack_value){
+                isSingleExpr = true;
+            }
+            ops_for_complexOnly += addindent(indent) + string(op_name) + " " + toHex(op1) + " " + toHex(op2) + " " + toHex(op3) + "\n";
+            
+        }
+        statistics.solveOneExpr();
+        
+        isMultiLoc = isMultiLoc && (!isSingleExpr);
+        if(isSingleExpr || isEmptyExpr){
+            bored_cnt++;
         }
     }
+    if(onlyComplex && isMultiLoc && bored_cnt < locentry_len){
+        cout<<ops_for_complexOnly<<endl;
+    }
+    
     dwarf_dealloc_loc_head_c(loclist_head);
     if(loc_form == DW_FORM_sec_offset){
 
@@ -460,6 +437,6 @@ int main(int argc, char *argv[]) {
     // output statistics
     cout<<"---------------- statistics ----------------"<<endl;
     cout<<"variable die doesn't have location attribute: " << varNoLocation << endl;
-
+    cout<<statistics.output()<<endl;
     return 0;
 }

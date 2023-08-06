@@ -8,6 +8,7 @@
 #include "frame.h"
 #include "ranges.h"
 #include "util.h"
+#include "statistics.h"
 
 #define simple_handle_err(res) do{ \
     if(res!=DW_DLV_OK){ \
