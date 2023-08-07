@@ -427,6 +427,14 @@ class Analysis:
             elif irExpr.op.startswith("Iop_Div"):
                 e1:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[0], irsb)
                 e2:BitVecRef = self.get_z3_expr_from_vex(irExpr.args[1], irsb)
+                if irExpr.op.startswith("Iop_DivS"):
+                    ''' signed division
+                    '''
+                    if e2.size() < e1.size():
+                        e2 = SignExt(e1.size()-e2.size(), e2)
+                    return  If(And(e1>0, e2<0), (e1-1)/e2-1,
+                            If(And(e1<0, e2>0), (e1+1)/e2-1, e1/e2))
+                
                 if e2.size() < e1.size():
                     e2 = ZeroExt(e1.size()-e2.size(), e2)
                 return e1 / e2
@@ -757,7 +765,7 @@ class Analysis:
                 for vex_expr in vex_exprs:
                     ''' avoid z3 match for register location description
                     '''
-                    if ty == DwarfType.REGISTER:
+                    if ty == DwarfType.REGISTER and not useOffset:
                         vex_regs = extract_regs_from_z3(vex_expr)
                         vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
                         dwarf_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in dwarf_regs}
@@ -768,21 +776,34 @@ class Analysis:
                     conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
                     
                     
-                    
-                    if dwarf_expr != None:
-                        slv.reset()
-                        slv.add(*conds)
-                        slv.add(vex_expr != dwarf_expr)
-                        if slv.check() == unsat:
-                            reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i))
-                            continue
-                    
-                    if dwarf_addr != None:
-                        slv.reset()
-                        slv.add(*conds)
-                        slv.add(vex_expr != dwarf_addr)
-                        if slv.check() == unsat:
-                            reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, -1, ty, irsb.addr, i))
+                    if useOffset:
+                        if dwarf_expr != None:
+                            offset = getConstOffset(vex_expr, dwarf_expr, conds)
+                            if isinstance(offset, BitVecNumRef):
+                                reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i, offset.as_signed_long()))
+                                continue
+
+                        if dwarf_addr != None:
+                            offset = getConstOffset(vex_expr, dwarf_addr, conds)
+                            if isinstance(offset, BitVecNumRef):
+                                reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i, offset.as_signed_long()))
+                                continue
+
+                    else:
+                        if dwarf_expr != None:
+                            slv.reset()
+                            slv.add(*conds)
+                            slv.add(vex_expr != dwarf_expr)
+                            if slv.check() == unsat:
+                                reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i))
+                                continue
+                        
+                        if dwarf_addr != None:
+                            slv.reset()
+                            slv.add(*conds)
+                            slv.add(vex_expr != dwarf_addr)
+                            if slv.check() == unsat:
+                                reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, -1, ty, irsb.addr, i))
 
 
                 

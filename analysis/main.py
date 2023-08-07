@@ -85,7 +85,7 @@ if __name__ == "__main__":
         if piece_num >= args.end:
             break
 
-        piece_name = tempPath + 'piece_' + str(piece_num)
+        piece_name = tempPath + '/piece_' + str(piece_num)
         addrExp = mgr.vars[piece_num]
 
         ''' filter imme out

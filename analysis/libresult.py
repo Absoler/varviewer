@@ -36,7 +36,7 @@ def setpos(z3Expr:ExprRef, pos:MatchPosition = MatchPosition.invalid):
     setattr(z3Expr, "matchPos", pos)
 
 class Result:
-    def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, irsb_addr=0, ind=0) -> None:
+    def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, irsb_addr=0, ind=0, offset:int = 0) -> None:
         self.addr:int = addr
         self.name:str = ""
         self.matchPos:MatchPosition = matchPos
@@ -45,7 +45,7 @@ class Result:
         '''
         self.indirect:int = indirect
         self.dwarfType:DwarfType = dwarfType
-        self.offset:int = 0
+        self.offset:int = offset
         self.expression = ""
         self.irsb_addr = irsb_addr
         self.ind = ind
@@ -90,12 +90,20 @@ class Result:
                     # `disp + baseReg + scale*indexReg`
                     address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
                 
-                if self.matchPos == MatchPosition.dst_value:
+                if self.matchPos == MatchPosition.dst_addr:
+                    self.expression = address
+                    self.addOffset()
+
+                elif self.matchPos == MatchPosition.dst_value:
+                    ''' for dst_value, we need compare the derefernce of binary address with dwarf var
+                    '''
                     self.expression = f"*({address})"
+                    self.addOffset()
                     self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else "0"
             
             elif insn.op0_kind == OpKind.REGISTER:
                 self.expression = f"${register_to_str[insn.op0_register].lower()}"
+                self.addOffset()
             else:
                 print(f"can't convert opkind {opKind_to_str[insn.op0_kind]} to str", file=sys.stderr)
                 return False
@@ -116,6 +124,7 @@ class Result:
                 address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
                 
                 self.expression = address
+                self.addOffset()
                 
             else:
                 ''' for src_value, we record the just like dst_value,
@@ -131,14 +140,21 @@ class Result:
                         address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
                     
                     self.expression = f"*({address})"
+                    self.addOffset()
                     self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else ""
                 
                 elif insn.op0_kind == OpKind.REGISTER:
                     self.expression = f"${register_to_str[insn.op0_register].lower()}"
+                    self.addOffset()
                 else:
                     print(f"can't convert opkind {opKind_to_str[insn.op0_kind]} to str", file=sys.stderr)
                     return False
                 
         return True
-        
+    
+    def addOffset(self):
+        if self.offset > 0:
+            self.expression = '(' + self.expression + ' - ' + str(self.offset) + ')'
+        elif self.offset < 0:
+            self.expression = '(' + self.expression + str(self.offset) + ')'
             
