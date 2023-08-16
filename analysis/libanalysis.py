@@ -397,6 +397,14 @@ class Analysis:
         #     print(f"successors: {node.successors_and_jumpkinds()}")
         #     print()
 
+    def dumpVex(self, path:str):
+        with open(path, "w") as vexFile:
+            for addr in self.irsb_map:
+                irsb:pyvex.block.IRSB = self.irsb_map[addr]
+                print(f"block addr {addr:X}", file=vexFile)
+                print(irsb._pp_str(), file=vexFile)
+                print("", file=vexFile)
+
     def processIRSB(self, node:angr.knowledge_plugins.cfg.cfg_node.CFGNode):
         irsb:pyvex.IRSB = node.block.vex
         print("In[]:\n" + self.in_reg_map[node].toString() + "\n")
@@ -715,7 +723,10 @@ class Analysis:
                         vex_exprs.append(vex_expr)
 
 
+                    data_size = ir.data.result_size(irsb.tyenv)
                     vex_expr = BitVec(get_base_name_vex(ir.offset), 64)
+                    if data_size < 64:
+                        vex_expr = vex_expr & BitVecVal(and_mask[data_size], 64)
                     setpos(vex_expr, MatchPosition.dst_value)
                     vex_exprs.append(vex_expr)
                     hasCandidate = True

@@ -35,6 +35,7 @@ if __name__ == "__main__":
     parser.add_argument("-sT", "--showTime", action="store_true", help="show time statistics")
     parser.add_argument("-o", "--output", help="specify the output json file", default="")
     parser.add_argument("-tP", "--tempPath", help="specify the tmp path", default="/tmp/varviewer")
+    parser.add_argument("-dV", "--dumpVex", action="store_true", help="dump vex ir statements for debugging")
     args = parser.parse_args()
 
     mgr = VarMgr()
@@ -138,6 +139,8 @@ if __name__ == "__main__":
         cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
         analysis = Analysis(proj, cfg)
         analysis.analyzeCFG()
+        if args.dumpVex:
+            analysis.dumpVex(piece_name + ".vex")
 
         if showTime:
             print(f"-- analysis {time.time()-startTime}")

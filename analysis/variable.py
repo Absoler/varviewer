@@ -12,12 +12,6 @@ from util import *
 
 from libanalysis import load_funcs
 
-and_mask:dict = {
-    0xff : (7, 0),
-    0xffff : (15, 0),
-    0xffffffff : (31, 0),
-    0xff00 : (15, 8)
-}
 
 class Expression:
     '''

@@ -39,6 +39,12 @@ class DwarfType(Enum):
     REGISTER = 1
     VALUE = 2
 
+and_mask:dict = {
+    8   : 0xff,
+    16  : 0xffff,
+    32  : 0xffffffff
+}
+
 # ----------------------------------------
 #
 #   vex utility

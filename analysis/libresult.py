@@ -49,6 +49,7 @@ class Result:
         self.expression = ""
         self.irsb_addr = irsb_addr
         self.ind = ind
+        self.piece_num:int = -1
     
     def keys(self):
         return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'offset', 'expression')
