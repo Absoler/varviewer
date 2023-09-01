@@ -25,6 +25,19 @@ class MatchPosition(Enum):
     dst_value = 4
     dst_addr = 8
 
+def getMemTypeStr(memSize:MemorySize):
+    if memSize == MemorySize.UINT8 or memSize == MemorySize.INT8:
+        return "char *"
+    elif memSize == MemorySize.UINT16 or memSize == MemorySize.INT16:
+        return "short *"
+    elif memSize == MemorySize.UINT32 or memSize == MemorySize.INT32:
+        return "int *"
+    elif memSize == MemorySize.UINT64 or memSize == MemorySize.INT64:
+        return "long long *"
+    else:
+        return "*"
+
+
 def isAddrPos(pos:MatchPosition) -> bool:
     return pos == MatchPosition.src_addr or pos == MatchPosition.dst_addr
 
@@ -98,9 +111,9 @@ class Result:
                 elif self.matchPos == MatchPosition.dst_value:
                     ''' for dst_value, we need compare the derefernce of binary address with dwarf var
                     '''
-                    self.expression = f"*({address})"
+                    self.expression = f"*({getMemTypeStr(insn.memory_size)})({address})"
                     self.addOffset()
-                    self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else "0"
+                    # self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else "0"
             
             elif insn.op0_kind == OpKind.REGISTER:
                 self.expression = f"${register_to_str[insn.op0_register].lower()}"
@@ -140,9 +153,9 @@ class Result:
                         # `disp + baseReg + scale*indexReg`
                         address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
                     
-                    self.expression = f"*({address})"
+                    self.expression = f"*({getMemTypeStr(insn.memory_size)})({address})"
                     self.addOffset()
-                    self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else ""
+                    # self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else ""
                 
                 elif insn.op0_kind == OpKind.REGISTER:
                     self.expression = f"${register_to_str[insn.op0_register].lower()}"

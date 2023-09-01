@@ -4,14 +4,19 @@ import sys
 
 # Sample JSON data (replace this with your actual JSON data)
 
+exit = False
 
+def exitHandler(event):
+    global exit
+    print("set exit")
+    exit = True
 
 # Define the GDB command
 class CheckVariablesCommand(gdb.Command):
     def __init__(self):
         super(CheckVariablesCommand, self).__init__("check_variables", gdb.COMMAND_USER)
-        
-    
+
+
     def load(self, json_path:str):
         json_file = open(json_path, "r")
         json_list:list[dict] = json.load(json_file)
@@ -30,9 +35,9 @@ class CheckVariablesCommand(gdb.Command):
 
         self.addrs = list(set(self.addrs))
         self.addrs.sort()
+        
         print("load done!")
 
-        
 
     def invoke(self, args, from_tty):
         ''' args[0]: match information json file path
@@ -42,6 +47,7 @@ class CheckVariablesCommand(gdb.Command):
         self.load(args[0])
         self.output_file = open(args[1], "a")
 
+        gdb.events.exited.connect(exitHandler)
         correct_cnt:int = 0
         wrong_cnt:int = 0
         hit_cnt:int = 0
@@ -49,7 +55,8 @@ class CheckVariablesCommand(gdb.Command):
         real_sum:int = 0
         outputContent:str = ""
 
-        def get_pc_addr():
+        def get_pc():
+            print('get pc')
             return int(gdb.parse_and_eval("$pc"))
 
         def get_var_addr_by_name(name:str):
@@ -79,13 +86,22 @@ class CheckVariablesCommand(gdb.Command):
                         outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}\n"
                         print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
 
-            if not (len(records) > 0 and get_pc_addr() in self.addrs):
+            pc = get_pc()
+            
+            if not (len(records) > 0 and pc in self.addrs):
                 gdb.execute("c")
             
+            global exit
+            if exit:
+                print("use exit")
+                break
+
             hit_cnt += 1
             records:list[dict] = []
-            addr = get_pc_addr()
+            addr = get_pc()
 
+            if len(self.json_map[addr]) == 0:
+                print(f"{addr:X} has no vars")
             for var in self.json_map[addr]:
                 name:str = var["name"]
                 matchPos:int = var["matchPos"]
@@ -104,7 +120,7 @@ class CheckVariablesCommand(gdb.Command):
                     records.append((var, oracle))
 
                 else:
-                    
+                    print('parse_and_eval(expression)')
                     our:int = int(gdb.parse_and_eval(expression))
                     if our == oracle:
                         correct_cnt += 1
@@ -114,10 +130,10 @@ class CheckVariablesCommand(gdb.Command):
                         outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}\n"
                         print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
 
-            if hit_cnt == len(self.addrs):
+            if hit_cnt >= len(self.addrs):
                 break
 
-        outputContent = f"{args[0]} correct {correct_cnt} / {correct_cnt+wrong_cnt}" + outputContent
+        outputContent = f"{args[0]} correct {correct_cnt} / {correct_cnt+wrong_cnt}\n" + outputContent
         print(outputContent, file=self.output_file)
         self.output_file.close()
             
