@@ -9,12 +9,13 @@ class Statistics{
     int exprCnt;
 
     int memoryCnt;
+    int globalCnt;
+    int cfaCnt;
     int memoryMultiCnt;
     int registerCnt;
     int implicitCnt;
     int implicitMultiCnt;
 
-    int cfaCnt;
 
     std::vector<Dwarf_Small> ops;
 

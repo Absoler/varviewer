@@ -8,12 +8,15 @@ Statistics::reset(){
     exprCnt = 0;
 
     memoryCnt = 0;
+    globalCnt = 0;
+    cfaCnt = 0;
     memoryMultiCnt = 0;
+    
     registerCnt = 0;
+    
     implicitCnt = 0;
     implicitMultiCnt = 0;
 
-    cfaCnt = 0;
 
     ops.clear();
     ops.reserve(32);
@@ -42,12 +45,13 @@ Statistics::solveOneExpr(){
     exprCnt += 1;
 
     int dwarfType = 0;  // memory default
+    bool hasCFA = false;
 
     for(unsigned i=0; i<ops.size(); ++i){
 
         Dwarf_Small op = ops[i];
         if(op == DW_OP_fbreg){
-            cfaCnt += 1;
+            hasCFA = true;
         }
 
         if(op >= DW_OP_reg0 && op <= DW_OP_reg31){
@@ -62,7 +66,13 @@ Statistics::solveOneExpr(){
         memoryCnt += 1;
         if (ops.size() > 1U){
             memoryMultiCnt += 1;
+        }else if (ops[0] == DW_OP_addr){
+            globalCnt += 1;
         }
+        if (hasCFA){
+            cfaCnt += 1;
+        }
+
     }else if (dwarfType == 1) {
         registerCnt += 1;
     }else {
@@ -73,7 +83,10 @@ Statistics::solveOneExpr(){
 
     }
 
-    ops.clear();
+    {
+        vector<Dwarf_Small> tmp;
+        ops.swap(tmp);
+    }
 }
 
 
@@ -83,12 +96,13 @@ Statistics::output(){
     res += "all variables: " + to_string(varCnt) + "\n";
     res += "all expressions: " + to_string(exprCnt) + "\n";
     res += "memoryCnt: " + to_string(memoryCnt) + "    " + to_string((double)memoryCnt/(double)exprCnt) + "\n";
+    res += "--- global count: " + to_string(globalCnt) + "    " + to_string((double)globalCnt/(double)exprCnt) + "    " + to_string((double)globalCnt/(double)memoryCnt) + "\n";
+    res += "--- cfa related: " + to_string(cfaCnt)+ "    " + to_string((double)cfaCnt/(double)exprCnt) + "    " + to_string((double)cfaCnt/(double)(memoryCnt)) + "\n";
     res += "--- Multi: " + to_string(memoryMultiCnt) + "    " + to_string((double)memoryMultiCnt/(double)exprCnt) + "   " + to_string((double)memoryMultiCnt/(double)memoryCnt) + "\n";
-    res += "--- single: " + to_string(memoryCnt - memoryMultiCnt)+ "    " + to_string((double)(memoryCnt - memoryMultiCnt)/(double)exprCnt) + "    " + to_string((double)(memoryCnt-memoryMultiCnt)/(double)memoryCnt) +  "\n";
+    res += "--- single: " + to_string(memoryCnt - memoryMultiCnt - globalCnt - cfaCnt)+ "    " + to_string((double)(memoryCnt - memoryMultiCnt - globalCnt - cfaCnt)/(double)exprCnt) + "    " + to_string((double)(memoryCnt - memoryMultiCnt - globalCnt - cfaCnt)/(double)memoryCnt) +  "\n";
     res += "registerCnt: " + to_string(registerCnt) + "    " + to_string((double)registerCnt/(double)exprCnt) + "\n";
     res += "implicitCnt: " + to_string(implicitCnt) + "    " + to_string((double)implicitCnt/(double)exprCnt) + "\n";
     res += "--- Multi: " + to_string(implicitMultiCnt)+ "    " + to_string((double)implicitMultiCnt/(double)exprCnt) + "    " + to_string((double)implicitMultiCnt/(double)implicitCnt) +  "\n";
     res += "--- single: " + to_string(implicitCnt - implicitMultiCnt)+ "    " + to_string((double)(implicitCnt - implicitMultiCnt)/(double)exprCnt) + "    " + to_string((double)(implicitCnt-implicitMultiCnt)/(double)implicitCnt) +  "\n";
-    res += "cfa related: " + to_string(cfaCnt)+ "    " + to_string((double)cfaCnt/(double)exprCnt) + "    " + to_string((double)cfaCnt/(double)(memoryCnt + implicitCnt)) + "\n";
     return res;
 }

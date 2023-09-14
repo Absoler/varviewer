@@ -4,55 +4,62 @@ from rewrite import *
 from variable import *
 from libanalysis import *
 
+'''
+    use for testing a single variable, so prepare
+    1. a single json file only containing the variable dwarf info
+    2. complete executable
+'''
+
+def err(info:str = ""):
+    print(f"error at {info}", file=sys.stderr)
+    exit(1)
 
 if __name__ == "__main__":
+
+    # prepare dwarf expression
     mgr = VarMgr()
     jsonpath = "test.json"
     mgr.load(jsonpath)
-
-    # addrExp = mgr.getVar(4507560, 4507642, "node")
-    # addrExp.restoreCFA(4507628)
     addrExp = mgr.vars[0]
+    dwarf_hint = Hint()
+    dwarf_expr = addrExp.get_Z3_expr(dwarf_hint)
 
-    proj = angr.Project(sys.argv[1], load_options={'auto_load_libs' : False})
-    cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
-    analyzeCFG(cfg, proj)
+    # prepare disassembly
+    binFile = open(sys.argv[1], "rb")
+    elf = ELFFile(binFile)
+    text = elf.get_section_by_name(".text")
+    code_addr = text['sh_addr']
+    code = text.data()
+    if len(code) == 0:
+        code = text.stream.read()
+        print("text.data() failed", file=sys.stderr)
 
-    
-    blk = proj.factory.block(0, opt_level=0)
-
-    hint = Hint()
-    dwarf_z3_expr:BitVecRef = addrExp.get_Z3_expr(hint)
-    vex_z3_expr:BitVecRef = get_z3_expr_from_vex(blk.vex.statements[5].data, blk)
-    
-    reg_map = guess_reg_type(vex_z3_expr)
-
-    ''' make assumptions
-    '''
-    regs:list[BitVecRef] = extract_regs_from_z3(dwarf_z3_expr)
-    s = Solver()
-
-    success = False
-    
-    s.add(loadu_cond)
-    s.add(loads_cond)
-    s.add(dwarf_z3_expr!=vex_z3_expr)
-    if s.check()==unsat:
-        success = True
-    else:
+    decoder = Decoder(64, code, ip=code_addr)
+    all_insts:Instruction = []
+    for ins in decoder:
+        all_insts.append(ins)
         
-        conds = []
-        for z3_reg in regs:
-            if z3_reg.decl().name() not in reg_map:
-                continue
-            cond = cond_extract(z3_reg, reg_map[z3_reg.decl().name()])
-            s.add(cond)
-                  
+    piece_name = "/tmp/piece"
+    startpc, endpc = addrExp.startpc, addrExp.endpc
+    l, r = find_l_ind(all_insts, startpc), find_l_ind(all_insts, endpc)
+    piece_asm, piece_addrs = construct(all_insts[l:r], startpc, endpc)
+    with open(piece_name + ".S", "w") as piece_as_file:
+        piece_as_file.write(piece_asm)
     
-    success = success or (s.check()==unsat)
-    print(success)
-    if not success:
-        m = s.model()
-        for z3_reg in regs:
-            m.eval(z3_reg)
+    ret = os.system(f"as {piece_name}.S -o {piece_name}.o && ld {piece_name}.o -Ttext 0 -o {piece_name}")
+    if ret != 0:
+        err("as and ld")
     
+    piece_file = open(piece_name, "rb")
+    proj = angr.Project(piece_file, load_options={'auto_load_libs' : False})
+    cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
+    analysis:Analysis = Analysis(proj, cfg)
+    analysis.analyzeCFG()
+
+    reses = analysis.match(dwarf_expr, DwarfType(addrExp.type), True, True)
+
+    all_reses = []
+    for res in reses:
+        res.update(piece_addrs, addrExp.name, 0)
+        res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
+        print(res.__str__())

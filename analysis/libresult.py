@@ -75,7 +75,7 @@ class Result:
         return getattr(self, item)
     
     def __str__(self) -> str:
-        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name}    pos:{self.matchPos.name} indirect level:{self.indirect} {self.piece_num}:{self.irsb_addr}:{self.ind}"
+        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} pos:{self.matchPos.name} indirect_level:{self.indirect} {self.piece_num}:{self.irsb_addr}:{self.ind}"
     
     def update(self, piece_addrs:list[int], name:str, piece_num:int):
         self.addr = piece_addrs[self.addr]
