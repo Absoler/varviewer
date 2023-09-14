@@ -379,6 +379,8 @@ class Analysis:
             for node in nodes:
                 change = self.analyzeBlock_relevance(node) or change
             loopCnt += 1
+            if loopCnt > 20:
+                break
     
         print(f"temp loop {loopCnt}")
 

@@ -16,6 +16,25 @@ from iced_x86 import *
 
 # ----------------------------------------
 #
+#   common
+#
+# ----------------------------------------
+
+def find_l_ind(insts:list[Instruction], ip:int):
+    ''' find the the first index of insts that insts[index].ip >= ip
+    [.. ip, ind ..]
+    '''
+    l, r = 0, len(insts)
+    while l<r:
+        mid = int((l+r)/2)
+        if insts[mid].ip >= ip:
+            r = mid
+        else:
+            l = mid+1
+    return l
+
+# ----------------------------------------
+#
 #   iced_x86 utility
 #
 # ----------------------------------------

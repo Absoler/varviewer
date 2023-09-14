@@ -377,7 +377,6 @@ class AddressExp(Expression):
 
 
 
-count = 0    
 
 class VarMgr:
     

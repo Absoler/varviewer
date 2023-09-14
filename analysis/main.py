@@ -8,22 +8,11 @@ import time
 import argparse
 
 
-def find_l_ind(insts:list[Instruction], ip:int):
-    ''' find the the first index of insts that insts[index].ip >= ip
-    [.. ip, ind ..]
-    '''
-    l, r = 0, len(insts)
-    while l<r:
-        mid = int((l+r)/2)
-        if insts[mid].ip >= ip:
-            r = mid
-        else:
-            l = mid+1
-    return l
 
 piece_limit = 1000000
 
 if __name__ == "__main__":
+    beginTime:int = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument("binPath")
     parser.add_argument("jsonPath")
@@ -36,6 +25,7 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="specify the output json file", default="")
     parser.add_argument("-tP", "--tempPath", help="specify the tmp path", default="/tmp/varviewer")
     parser.add_argument("-dV", "--dumpVex", action="store_true", help="dump vex ir statements for debugging")
+    parser.add_argument("-fP", "--filterPrefix", help="only match variables defined in given path", default="/")
     args = parser.parse_args()
 
     mgr = VarMgr()
@@ -72,10 +62,16 @@ if __name__ == "__main__":
             shutil.rmtree(tempPath)
         os.mkdir(tempPath)
 
+    print(f"preparations time: {time.time() - beginTime}s")
+    
     # start analysis
 
     all_reses = []
     showTime:bool = args.showTime
+    filterPrefix:str = os.path.normpath(args.filterPrefix)
+    ''' number of processed addrExps
+    '''
+    count, matchCount = 0, 0
     for piece_num in range(mgr.local_ind, len(mgr.vars)):
         
         startTime = time.time()
@@ -94,6 +90,11 @@ if __name__ == "__main__":
         if addrExp.is_const() or addrExp.empty:
             continue
 
+        ''' filter no-include variables out
+        '''
+        if not addrExp.decl_file.startswith(filterPrefix):
+            continue
+
         startpc, endpc = addrExp.startpc, addrExp.endpc
 
         if not useCache or not os.path.exists(piece_name):     
@@ -109,6 +110,7 @@ if __name__ == "__main__":
             if ret != 0:
                 continue
         
+        count += 1
         print(f"piece num {piece_num}")
 
         if args.onlyGen:
@@ -148,18 +150,25 @@ if __name__ == "__main__":
 
         ''' try match
         '''
-        reses = analysis.match(dwarf_expr, DwarfType(addrExp.type), args.useOffset, showTime)
-        
+        try:
+            reses = analysis.match(dwarf_expr, DwarfType(addrExp.type), args.useOffset, showTime)
+        except Exception as e:
+            print(f"exception {e} in matching")
+
         if showTime:
             print(f"-- summary vex and match {time.time()-startTime}")
             startTime = time.time()
         
-
+        if len(reses) > 0:
+            matchCount += 1
         for res in reses:
-            res.update(piece_addrs, addrExp.name, piece_num)
-            success = res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
-            if success:
-                all_reses.append(res)
+            try:
+                res.update(piece_addrs, addrExp.name, piece_num)
+                success = res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
+                if success:
+                    all_reses.append(res)
+            except Exception as e:
+                print(f"meet exception {e}")
 
         piece_file.close()
         piece_addr_file.close()
@@ -170,6 +179,7 @@ if __name__ == "__main__":
 
     ''' output result
     '''
+    print(f"match {matchCount} / {count} variable debug info entry")
     if args.output == "":
         for res in all_reses:
             print(res)
