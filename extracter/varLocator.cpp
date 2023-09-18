@@ -177,9 +177,8 @@ int print_raw_location(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc
         res = dwarf_get_loclist_c(loc_attr, &loclist_head, &locentry_len, &err);
     
     simple_handle_err(res)
-    statistics.addVar();
     
-    string ops_for_complexOnly;
+    string outputString;
     bool isMultiLoc = true;
     int bored_cnt = 0;
     for(Dwarf_Unsigned i = 0; i<locentry_len; i++){
@@ -209,20 +208,19 @@ int print_raw_location(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc
 
         bool isSingleExpr = false;
         bool isEmptyExpr = false;
+        bool isImplicit = false;
+        bool isReg = false;
+        bool hasCFA = false;
 
         Dwarf_Small op = 0;
-        if(!onlyComplex){
-            printf("\n");
-            printindent(indent);
-            printf("--- exp start %llx %llx\n", lopc, hipc);
-        }
+        
         if(loclist_expr_op_count == 1){
             isSingleExpr = true;
         }
         if(lopc == hipc && loclist_expr_op_count>0){
             isEmptyExpr = true;
         }
-        ops_for_complexOnly += '\n' + addindent(indent) + "--- exp start " + toHex(lopc) + " " + toHex(hipc) + "\n";
+        outputString += '\n' + addindent(indent) + "--- exp start " + toHex(lopc) + " " + toHex(hipc) + "\n";
         for(Dwarf_Unsigned j = 0; j<loclist_expr_op_count; j++){
             Dwarf_Unsigned op1, op2, op3, offsetForBranch;
                 
@@ -235,24 +233,28 @@ int print_raw_location(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc
             const char *op_name;
             res = dwarf_get_OP_name(op, &op_name);
             
-            if(!onlyComplex){
-                printindent(indent);
-                printf("%s ", op_name);
-                printf(" %llx %llx %llx %llx\n", op1, op2, op3, offsetForBranch);
-                if(op==DW_OP_entry_value||op==DW_OP_GNU_entry_value){
-                    tempEvaluator.dbg = dbg;
-                    tempEvaluator.parse_dwarf_block((Dwarf_Ptr)op2, op1, true);
-                }
-                if(op==DW_OP_fbreg){
-                    printf("DW_OP_fbreg_range %llu %llu\n", lopc, hipc);
-                }
+           
+            if(op==DW_OP_entry_value||op==DW_OP_GNU_entry_value){
+                tempEvaluator.dbg = dbg;
+                tempEvaluator.parse_dwarf_block((Dwarf_Ptr)op2, op1, true);
             }
+            if(op==DW_OP_fbreg){
+                hasCFA = true;
+                outputString += "DW_OP_fbreg_range " + toHex(lopc) + " " + toHex(hipc) + "\n";
+            }
+
             if(j==1 && loclist_expr_op_count == 2 && op == DW_OP_stack_value){
                 isSingleExpr = true;
             }
-            ops_for_complexOnly += addindent(indent) + string(op_name) + " " + toHex(op1) + " " + toHex(op2) + " " + toHex(op3) + "\n";
+            if(op==DW_OP_stack_value){
+                isImplicit = true;
+            }else if(op>=DW_OP_reg0 && op<=DW_OP_reg31){
+                isReg = true;
+            }
+            outputString += addindent(indent) + string(op_name) + " " + toHex(op1) + " " + toHex(op2) + " " + toHex(op3) + "\n";
             
         }
+        outputString += addindent(indent) + "[" + to_string(loclist_expr_op_count) + (isReg?"r":(isImplicit?"i":"m")) + (hasCFA?"c":"") + "]\n";
         statistics.solveOneExpr();
         
         isMultiLoc = isMultiLoc && (!isSingleExpr);
@@ -260,8 +262,8 @@ int print_raw_location(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc
             bored_cnt++;
         }
     }
-    if(onlyComplex && isMultiLoc && bored_cnt < locentry_len){
-        cout<<ops_for_complexOnly<<endl;
+    if(!onlyComplex || isMultiLoc && bored_cnt < locentry_len){
+        cout<<outputString<<endl;
     }
     
     dwarf_dealloc_loc_head_c(loclist_head);
@@ -321,7 +323,7 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
                     }
                     
                     if(printRawLoc){
-                        
+                        statistics.addVar(tag);
                         print_raw_location(dbg, location_attr, form, indent+1);
                     }else{
                         test_evaluator(dbg, cu_die, fa_die, range);

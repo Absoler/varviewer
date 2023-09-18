@@ -129,8 +129,6 @@ if __name__ == "__main__":
             print(f"-- open piece {time.time()-startTime}")
             startTime = time.time()
 
-        dwarf_hint = Hint()
-        dwarf_expr = addrExp.get_Z3_expr(dwarf_hint)
         # solver.add(*dwarf_hint.conds)
 
         if showTime:
@@ -151,7 +149,7 @@ if __name__ == "__main__":
         ''' try match
         '''
         try:
-            reses = analysis.match(dwarf_expr, DwarfType(addrExp.type), args.useOffset, showTime)
+            reses = analysis.match(addrExp, DwarfType(addrExp.type), piece_addrs, args.useOffset, showTime)
         except Exception as e:
             print(f"exception {e} in matching")
 
@@ -163,7 +161,7 @@ if __name__ == "__main__":
             matchCount += 1
         for res in reses:
             try:
-                res.update(piece_addrs, addrExp.name, piece_num)
+                res.update(addrExp.name, piece_num)
                 success = res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
                 if success:
                     all_reses.append(res)

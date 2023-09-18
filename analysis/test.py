@@ -21,8 +21,6 @@ if __name__ == "__main__":
     jsonpath = "test.json"
     mgr.load(jsonpath)
     addrExp = mgr.vars[0]
-    dwarf_hint = Hint()
-    dwarf_expr = addrExp.get_Z3_expr(dwarf_hint)
 
     # prepare disassembly
     binFile = open(sys.argv[1], "rb")
@@ -56,10 +54,10 @@ if __name__ == "__main__":
     analysis:Analysis = Analysis(proj, cfg)
     analysis.analyzeCFG()
 
-    reses = analysis.match(dwarf_expr, DwarfType(addrExp.type), True, True)
+    reses = analysis.match(addrExp, DwarfType(addrExp.type), piece_addrs, True, True)
 
     all_reses = []
     for res in reses:
-        res.update(piece_addrs, addrExp.name, 0)
+        res.update(addrExp.name, 0)
         res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
         print(res.__str__())

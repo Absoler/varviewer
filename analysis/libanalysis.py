@@ -10,6 +10,7 @@ from hint import Hint
 from util import *
 from typing import NewType
 from libresult import *
+from variable import *
 import time
 
 
@@ -670,7 +671,8 @@ class Analysis:
         return None
 
 
-    def match(self, dwarf_expr:BitVecRef, ty:DwarfType, useOffset:bool, showTime:bool=False) -> list[Result]:
+    def match(self, addrExp:AddressExp, ty:DwarfType, piece_addrs:list, useOffset:bool, showTime:bool=False) -> list[Result]:
+        dwarf_expr:BitVecRef = addrExp.get_Z3_expr(Hint())
         dwarf_regs = extract_regs_from_z3(dwarf_expr)
         dwarf_regs_names = {reg.decl().name() for reg in dwarf_regs}
 
@@ -680,6 +682,7 @@ class Analysis:
         elif ty == DwarfType.MEMORY:
             dwarf_addr = dwarf_expr
             dwarf_expr = None
+        
 
         nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(self.cfg.graph.nodes)
         slv = Solver()
@@ -699,8 +702,22 @@ class Analysis:
             for i, ir in enumerate(irsb.statements):
                 if isinstance(ir, pyvex.stmt.IMark):
                     curAddr = ir.addr
+                    if curAddr == self.addr_list[-1]:
+                        break
+                    curAddr = piece_addrs[self.addr_list.index(curAddr)]
                     continue
                 
+                if addrExp.needCFA:
+                    tmp_addrExp = copy.deepcopy(addrExp)
+                    tmp_addrExp.restoreCFA(curAddr)
+                    dwarf_expr = tmp_addrExp.get_Z3_expr(Hint())
+                    dwarf_regs = extract_regs_from_z3(dwarf_expr)
+                    dwarf_regs_names = {reg.decl().name() for reg in dwarf_regs}
+                    if ty == DwarfType.VALUE:
+                        dwarf_addr = get_addr(dwarf_expr)
+                    elif ty == DwarfType.MEMORY:
+                        dwarf_addr = dwarf_expr
+                        dwarf_expr = None
                 vex_expr:BitVecRef = None
                 vex_exprs:list[BitVecRef] = []
                 hasCandidate = False
@@ -783,7 +800,7 @@ class Analysis:
                         vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
                         dwarf_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in dwarf_regs}
                         if vex_regs_sizeNames == dwarf_regs_sizeNames and not has_load(vex_expr) and not has_offset(vex_expr):
-                            reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i))
+                            reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, irsb.addr, i))
                         continue
 
                     conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
@@ -793,13 +810,13 @@ class Analysis:
                         if dwarf_expr != None:
                             offset = getConstOffset(vex_expr, dwarf_expr, conds)
                             if isinstance(offset, BitVecNumRef):
-                                reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i, offset.as_signed_long()))
+                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, irsb.addr, i, offset.as_signed_long()))
                                 continue
 
                         if dwarf_addr != None:
                             offset = getConstOffset(vex_expr, dwarf_addr, conds)
                             if isinstance(offset, BitVecNumRef):
-                                reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i, offset.as_signed_long()))
+                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, irsb.addr, i, offset.as_signed_long()))
                                 continue
 
                     else:
@@ -808,7 +825,7 @@ class Analysis:
                             slv.add(*conds)
                             slv.add(vex_expr != dwarf_expr)
                             if slv.check() == unsat:
-                                reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, 0, ty, irsb.addr, i))
+                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, irsb.addr, i))
                                 continue
                         
                         if dwarf_addr != None:
@@ -816,7 +833,7 @@ class Analysis:
                             slv.add(*conds)
                             slv.add(vex_expr != dwarf_addr)
                             if slv.check() == unsat:
-                                reses.append(Result(self.addr_list.index(curAddr), vex_expr.matchPos, -1, ty, irsb.addr, i))
+                                reses.append(Result(curAddr, vex_expr.matchPos, -1, ty, irsb.addr, i))
 
 
                 

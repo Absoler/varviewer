@@ -17,6 +17,7 @@ Statistics::reset(){
     implicitCnt = 0;
     implicitMultiCnt = 0;
 
+    isParam = false;
 
     ops.clear();
     ops.reserve(32);
@@ -32,8 +33,9 @@ Statistics::addOp(Dwarf_Small op){
 }
 
 void
-Statistics::addVar(){
+Statistics::addVar(Dwarf_Half tag){
     varCnt += 1;
+    isParam = (tag == DW_TAG_formal_parameter);
 }
 
 void
@@ -74,6 +76,7 @@ Statistics::solveOneExpr(){
         }
 
     }else if (dwarfType == 1) {
+        paramRegCnt += (isParam ? 1:0);
         registerCnt += 1;
     }else {
         implicitCnt += 1;
@@ -101,6 +104,8 @@ Statistics::output(){
     res += "--- Multi: " + to_string(memoryMultiCnt) + "    " + to_string((double)memoryMultiCnt/(double)exprCnt) + "   " + to_string((double)memoryMultiCnt/(double)memoryCnt) + "\n";
     res += "--- single: " + to_string(memoryCnt - memoryMultiCnt - globalCnt - cfaCnt)+ "    " + to_string((double)(memoryCnt - memoryMultiCnt - globalCnt - cfaCnt)/(double)exprCnt) + "    " + to_string((double)(memoryCnt - memoryMultiCnt - globalCnt - cfaCnt)/(double)memoryCnt) +  "\n";
     res += "registerCnt: " + to_string(registerCnt) + "    " + to_string((double)registerCnt/(double)exprCnt) + "\n";
+    res += "--- paramRegCnt: " + to_string(paramRegCnt) + "    " + to_string((double)paramRegCnt/(double)exprCnt) + "    " + to_string((double)paramRegCnt/(double)registerCnt) + "\n";
+    res += "--- non-paramRegCnt: " + to_string(registerCnt - paramRegCnt) + "    " + to_string((double)(registerCnt - paramRegCnt)/(double)exprCnt) + "    " + to_string((double)(registerCnt - paramRegCnt)/(double)registerCnt) + "\n";
     res += "implicitCnt: " + to_string(implicitCnt) + "    " + to_string((double)implicitCnt/(double)exprCnt) + "\n";
     res += "--- Multi: " + to_string(implicitMultiCnt)+ "    " + to_string((double)implicitMultiCnt/(double)exprCnt) + "    " + to_string((double)implicitMultiCnt/(double)implicitCnt) +  "\n";
     res += "--- single: " + to_string(implicitCnt - implicitMultiCnt)+ "    " + to_string((double)(implicitCnt - implicitMultiCnt)/(double)exprCnt) + "    " + to_string((double)(implicitCnt-implicitMultiCnt)/(double)implicitCnt) +  "\n";

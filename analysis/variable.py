@@ -10,7 +10,6 @@ from z3 import *
 from hint import Hint
 from util import *
 
-from libanalysis import load_funcs
 
 
 class Expression:

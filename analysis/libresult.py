@@ -48,6 +48,35 @@ def isDestPos(pos:MatchPosition) -> bool:
 def setpos(z3Expr:ExprRef, pos:MatchPosition = MatchPosition.invalid):
     setattr(z3Expr, "matchPos", pos)
 
+
+''' get gdb-valid string of memory use in an instruction
+'''
+def get_address_str_of_insn(insn:Instruction) -> str:
+    # `disp`
+    res = f"{insn.memory_displacement}"
+    if not insn.is_ip_rel_memory_operand:
+        # `disp + baseReg`
+        res += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
+        # `disp + baseReg + scale*indexReg`
+        res += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
+    return res
+
+
+''' get gdb-valid string of specified operand of an instruction
+'''
+def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
+    
+    if insn.op_kind(ind) == OpKind.MEMORY:
+        address = get_address_str_of_insn(insn)   
+        return f"*({getMemTypeStr(insn.memory_size)})({address})"
+
+    elif insn.op_kind(ind) == OpKind.REGISTER:
+        return f"${register_to_str[insn.op_register(ind)].lower()}"
+    
+    else:
+        print(f"can't convert opkind {opKind_to_str[insn.op_kind(ind)]} to str", file=sys.stderr)
+        return ""
+
 class Result:
     def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, irsb_addr=0, ind=0, offset:int = 0) -> None:
         self.addr:int = addr
@@ -63,9 +92,13 @@ class Result:
         self.irsb_addr = irsb_addr
         self.ind = ind
         self.piece_num:int = -1
+        ''' no certain which operand is need, 
+            so record all, join with '@'
+        '''
+        self.uncertain:bool = False
     
     def keys(self):
-        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'offset', 'expression')
+        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'offset', 'expression', 'uncertain')
     
     def __getitem__(self, item):
         if item == "matchPos":
@@ -75,16 +108,17 @@ class Result:
         return getattr(self, item)
     
     def __str__(self) -> str:
-        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} pos:{self.matchPos.name} indirect_level:{self.indirect} {self.piece_num}:{self.irsb_addr}:{self.ind}"
+        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} pos:{self.matchPos.name} indirect_level:{self.indirect} offset:{self.offset} {self.piece_num}:{self.irsb_addr}:{self.ind}"
     
-    def update(self, piece_addrs:list[int], name:str, piece_num:int):
-        self.addr = piece_addrs[self.addr]
+    def update(self, name:str, piece_num:int):
         self.name = name
         self.piece_num = piece_num
 
     def construct_expression(self, insn:Instruction) -> bool:
+        if insn.op_count < 1:
+            return False
         ''' only use the target operand, because it's confirmed
-            trust op0 in iced_x86 is target
+            
         '''
         
         ''' if `src_addr`, it means op1 must be the source, 
@@ -92,77 +126,74 @@ class Result:
 
         '''
         
-        if isDestPos(self.matchPos):
-            if insn.op_count < 1:
-                return False
-            if insn.op0_kind == OpKind.MEMORY:
-                # `disp`
-                address = f"{insn.memory_displacement}"
-                if not insn.is_ip_rel_memory_operand:
-                    # `disp + baseReg`
-                    address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
-                    # `disp + baseReg + scale*indexReg`
-                    address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
-                
-                if self.matchPos == MatchPosition.dst_addr:
-                    self.expression = address
-                    self.addOffset()
+        code_str = code_to_str[insn.code]
+        src_ind, dst_ind = 1, 0
+        if code_str.startswith("PUSH"):
+            src_ind, dst_ind = None, 0
+        elif insn.op_count == 1:
+            src_ind, dst_ind = 1, 1
 
-                elif self.matchPos == MatchPosition.dst_value:
-                    ''' for dst_value, we need compare the derefernce of binary address with dwarf var
-                    '''
-                    self.expression = f"*({getMemTypeStr(insn.memory_size)})({address})"
-                    self.addOffset()
-                    # self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else "0"
+        ''' these instructions have 2 operands and are all read,
+            any of the 2 operands can be matched
+        '''
+        self.uncertain = code_str.startswith("CMP") or code_str.startswith("TEST")
+
+        if isDestPos(self.matchPos):
+
+            if self.matchPos == MatchPosition.dst_addr:
+                assert(insn.op_kind(dst_ind) == OpKind.MEMORY)
+                address = get_address_str_of_insn(insn)
+                self.expression = address
             
-            elif insn.op0_kind == OpKind.REGISTER:
-                self.expression = f"${register_to_str[insn.op0_register].lower()}"
-                self.addOffset()
-            else:
-                print(f"can't convert opkind {opKind_to_str[insn.op0_kind]} to str", file=sys.stderr)
-                return False
+            elif self.matchPos == MatchPosition.dst_value:
+                value = get_value_str_of_operand(insn, dst_ind)
+                if not value:
+                    return False
+                self.expression = value
+
+            
+            # if insn.op0_kind == OpKind.MEMORY:
+            #     address = get_address_str_of_insn(insn)
+                
+            #     if self.matchPos == MatchPosition.dst_addr:
+            #         self.expression = address
+
+            #     elif self.matchPos == MatchPosition.dst_value:
+            #         ''' for dst_value, we need compare the derefernce of binary address with dwarf var
+            #         '''
+            #         self.expression = f"*({getMemTypeStr(insn.memory_size)})({address})"
+
+            #         # self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else "0"
+            
+            # elif insn.op0_kind == OpKind.REGISTER:
+            #     assert(self.matchPos == MatchPosition.dst_value)
+            #     self.expression = f"${register_to_str[insn.op0_register].lower()}"
+
+            # else:
+            #     print(f"can't convert opkind {opKind_to_str[insn.op0_kind]} to str", file=sys.stderr)
+            #     return False
         
         else:
-            if insn.op_count<2:
-                return False
+            # if insn.op_count<2:
+            #     return False
             if self.matchPos == MatchPosition.src_addr:
                 ''' matchPos is `src_addr`, then the match must not mix src and dst
                     operand,
                 '''
-                assert(insn.op1_kind == OpKind.MEMORY)
-                # `disp`
-                address = f"{insn.memory_displacement}"
-                # `disp + baseReg`
-                address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
-                # `disp + baseReg + scale*indexReg`
-                address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
-                
+                assert(insn.op_kind(src_ind) == OpKind.MEMORY)
+                address = get_address_str_of_insn(insn)
                 self.expression = address
-                self.addOffset()
-                
+
             else:
                 ''' for src_value, we record the just like dst_value,
                     because we don't know whether src is mixed with dst
                 '''
-                if insn.op0_kind == OpKind.MEMORY:
-                    # `disp`
-                    address = f"{insn.memory_displacement}"
-                    if not insn.is_ip_rel_memory_operand:
-                        # `disp + baseReg`
-                        address += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
-                        # `disp + baseReg + scale*indexReg`
-                        address += f" + ${register_to_str[insn.memory_index].lower()}*{insn.memory_index_scale}" if insn.memory_index != Register.NONE else ""
-                    
-                    self.expression = f"*({getMemTypeStr(insn.memory_size)})({address})"
-                    self.addOffset()
-                    # self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else ""
-                
-                elif insn.op0_kind == OpKind.REGISTER:
-                    self.expression = f"${register_to_str[insn.op0_register].lower()}"
-                    self.addOffset()
-                else:
-                    print(f"can't convert opkind {opKind_to_str[insn.op0_kind]} to str", file=sys.stderr)
+                value:str = get_value_str_of_operand(insn, dst_ind)
+                if not value:
                     return False
+                self.expression = value
+        
+        self.addOffset()
                 
         return True
     
