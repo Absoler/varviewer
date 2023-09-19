@@ -56,7 +56,6 @@ class CheckVariablesCommand(gdb.Command):
         outputContent:str = ""
 
         def get_pc():
-            print('get pc')
             return int(gdb.parse_and_eval("$pc"))
 
         def get_var_addr_by_name(name:str):
@@ -64,6 +63,16 @@ class CheckVariablesCommand(gdb.Command):
         
         def get_var_value_by_name(name:str):
             return int(gdb.parse_and_eval(name))
+
+        def get_candidate_values(var:dict) -> set:
+            if var["uncertain"] == "false":
+                return {gdb.parse_and_eval(expression)}
+            tmp = [s for s in expression.split("@") if s != ""]
+            print(tmp)
+            tmp = list(map(gdb.parse_and_eval, tmp))
+            print(tmp)
+
+            return set(map(int, tmp))
 
         for addr in self.addrs:
             gdb.execute(f"b *{addr}")
@@ -77,14 +86,15 @@ class CheckVariablesCommand(gdb.Command):
                 gdb.execute("si")
                 for var, oracle in records:
                     print(var["expression"])
-                    our:int = int(gdb.parse_and_eval(var["expression"]))
-                    if oracle == our:
+                    # our:int = int(gdb.parse_and_eval(var["expression"]))
+                    ours:set[int] = get_candidate_values(var)
+                    if oracle in ours:
                         correct_cnt += 1
-                        print(f"\n### correct at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
+                        print(f"\n### correct at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}")
                     else:
                         wrong_cnt += 1
-                        outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}\n"
-                        print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
+                        outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}\n"
+                        print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}")
 
             pc = get_pc()
             
@@ -97,7 +107,7 @@ class CheckVariablesCommand(gdb.Command):
                 break
 
             hit_cnt += 1
-            records:list[dict] = []
+            records:list[tuple] = []
             addr = get_pc()
 
             if len(self.json_map[addr]) == 0:
@@ -121,16 +131,20 @@ class CheckVariablesCommand(gdb.Command):
 
                 else:
                     print('parse_and_eval(expression)')
-                    our:int = int(gdb.parse_and_eval(expression))
-                    if our == oracle:
+                    # our:int = int(gdb.parse_and_eval(expression))
+                    ours:set[int] = get_candidate_values(var)
+                    if oracle in ours:
                         correct_cnt += 1
-                        print(f"\n### correct at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
+                        print(f"\n### correct at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}")
                     else:
                         wrong_cnt += 1
-                        outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}\n"
-                        print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{our} oracle:{oracle}")
+                        outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}\n"
+                        print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}")
 
-            if hit_cnt >= len(self.addrs):
+            if hit_cnt > len(self.addrs):
+                ''' in case the last one is `src_value`, need delayed processing
+                    so don't break when hit_cnt == len(self.addrs)
+                '''
                 break
 
         outputContent = f"{args[0]} correct {correct_cnt} / {correct_cnt+wrong_cnt}\n" + outputContent

@@ -71,6 +71,8 @@ def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
         return f"*({getMemTypeStr(insn.memory_size)})({address})"
 
     elif insn.op_kind(ind) == OpKind.REGISTER:
+        if not (insn.op_register(ind) != Register.NONE):
+            print('hit')
         return f"${register_to_str[insn.op_register(ind)].lower()}"
     
     else:
@@ -131,12 +133,23 @@ class Result:
         if code_str.startswith("PUSH"):
             src_ind, dst_ind = None, 0
         elif insn.op_count == 1:
-            src_ind, dst_ind = 1, 1
+            src_ind, dst_ind = 0, 0
 
         ''' these instructions have 2 operands and are all read,
             any of the 2 operands can be matched
         '''
         self.uncertain = code_str.startswith("CMP") or code_str.startswith("TEST")
+        if self.uncertain:
+            if isAddrPos(self.matchPos):
+                assert(insn.op0_kind == OpKind.MEMORY or insn.op1_kind == OpKind.MEMORY)
+                address = get_address_str_of_insn(insn)
+                self.expression = address
+            else:
+                value0, value1 = get_value_str_of_operand(insn, 0), get_value_str_of_operand(insn, 1)
+                self.expression = value0 + "@" + value1 +"@"
+            self.addOffset()
+            return True
+                
 
         if isDestPos(self.matchPos):
 
@@ -151,31 +164,9 @@ class Result:
                     return False
                 self.expression = value
 
-            
-            # if insn.op0_kind == OpKind.MEMORY:
-            #     address = get_address_str_of_insn(insn)
-                
-            #     if self.matchPos == MatchPosition.dst_addr:
-            #         self.expression = address
 
-            #     elif self.matchPos == MatchPosition.dst_value:
-            #         ''' for dst_value, we need compare the derefernce of binary address with dwarf var
-            #         '''
-            #         self.expression = f"*({getMemTypeStr(insn.memory_size)})({address})"
-
-            #         # self.expression += f" & {(1<<memorySize_to_int[insn.memory_size]) - 1}" if memorySize_to_int[insn.memory_size] < 64 else "0"
-            
-            # elif insn.op0_kind == OpKind.REGISTER:
-            #     assert(self.matchPos == MatchPosition.dst_value)
-            #     self.expression = f"${register_to_str[insn.op0_register].lower()}"
-
-            # else:
-            #     print(f"can't convert opkind {opKind_to_str[insn.op0_kind]} to str", file=sys.stderr)
-            #     return False
-        
         else:
-            # if insn.op_count<2:
-            #     return False
+
             if self.matchPos == MatchPosition.src_addr:
                 ''' matchPos is `src_addr`, then the match must not mix src and dst
                     operand,
