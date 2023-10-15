@@ -6,6 +6,7 @@ from libanalysis import *
 import shutil
 import time
 import argparse
+from filter import Filter
 
 
 
@@ -25,13 +26,17 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="specify the output json file", default="")
     parser.add_argument("-tP", "--tempPath", help="specify the tmp path", default="/tmp/varviewer")
     parser.add_argument("-dV", "--dumpVex", action="store_true", help="dump vex ir statements for debugging")
-    parser.add_argument("-fP", "--filterPrefix", help="only match variables defined in given path", default="/")
+    parser.add_argument("-fP", "--filterPrefix", help="only match variables defined in given path", default="")
+    parser.add_argument("-fA", "--filterAddressPath", help="specify a file containing cared code range", default="")
     args = parser.parse_args()
 
     mgr = VarMgr()
 
     binPath = args.binPath
     jsonPath = args.jsonPath
+
+    # build filter
+    checkFilter = Filter(args.filterPrefix, args.filterAddressPath)
     
     # prepare disassembly
     binFile = open(binPath, "rb")
@@ -68,7 +73,7 @@ if __name__ == "__main__":
 
     all_reses = []
     showTime:bool = args.showTime
-    filterPrefix:str = os.path.normpath(args.filterPrefix)
+    
     ''' number of processed addrExps
     '''
     count, matchCount = 0, 0
@@ -90,9 +95,9 @@ if __name__ == "__main__":
         if addrExp.is_const() or addrExp.empty:
             continue
 
-        ''' filter no-include variables out
+        ''' filter uncare addrExp out
         '''
-        if not addrExp.decl_file.startswith(filterPrefix):
+        if not checkFilter.valid(addrExp):
             continue
 
         startpc, endpc = addrExp.startpc, addrExp.endpc

@@ -71,6 +71,8 @@ int parse_simple_ranges(Dwarf_Die die, Dwarf_Addr *startpc, Dwarf_Addr *endpc){
         }
     }
 
+    dwarf_dealloc_attribute(high_pc);
+    dwarf_dealloc_attribute(low_pc);
     return res;
 }
 

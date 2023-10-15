@@ -4,12 +4,14 @@
 #include <cstdio>
 #include <cstring>
 #include <fcntl.h>
+#include <libdwarf-0/libdwarf.h>
 #include <stack>
 #include <string>
 #include <unistd.h>
 #include <vector>
 #include <queue>
 
+#include "util.h"
 #include "varLocator.h"
 
 
@@ -18,6 +20,7 @@ using namespace std;
 
 // global options
 string jsonFileStr;
+ofstream jsonOut;
 string frameFileStr;
 int useJson = 1;
 bool printRawLoc = false;
@@ -27,6 +30,7 @@ bool noTraverse = false;
 
 // important variables
 json allJson = json::array();
+bool isFirstJson = true;
 
 // statistic variables
 int varNoLocation = 0;
@@ -69,14 +73,22 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range r
 
     if(useJson){
         json addrJson = createJsonforAddress(addr);
-        allJson.push_back(std::move(addrJson));
-        
+        // allJson.push_back(std::move(addrJson));
+        string jsonStr = addrJson.dump(4);
+        addrJson.clear();
+        if (likely(!isFirstJson)) {
+            jsonOut << ",\n";
+        }else{
+            isFirstJson = false;
+        }
+        jsonOut << jsonStr;
+        jsonOut.flush();
         
     }else{
         addr.output();
     }
 
-    
+    dwarf_dealloc_attribute(location_attr);
     return 0;
 }
 
@@ -112,7 +124,10 @@ int test_declPos(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die,
 
         Dwarf_Die origin_die;
         res = dwarf_offdie_b(dbg, offset, is_info, &origin_die, &err);
+        // dwarf_dealloc_die(var_die);
         var_die = origin_die;
+
+        dwarf_dealloc_attribute(off_attr);
     }
     
     // get file name
@@ -299,12 +314,12 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
 
             if (tag==DW_TAG_variable||tag==DW_TAG_formal_parameter){
                 Dwarf_Bool hasLoc = false;
-                char *var_name = nullptr;
-                res = get_name(dbg, fa_die, &var_name);
+                // char *var_name = nullptr;
+                // res = get_name(dbg, fa_die, &var_name);
                 
-                if(res == DW_DLV_OK){
-                    printf(" name: %s", var_name);
-                }
+                // if(res == DW_DLV_OK){
+                //     printf(" name: %s", var_name);
+                // }
 
                 res = dwarf_hasattr(fa_die, DW_AT_location, &hasLoc, &err);
                 
@@ -328,8 +343,10 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
                     }else{
                         test_evaluator(dbg, cu_die, fa_die, range);
                     }
+
+                    dwarf_dealloc_attribute(location_attr);
                 }else{
-                    fprintf(stderr, "%s no location\n", var_name);
+                    // fprintf(stderr, "%s no location\n", var_name);
                     varNoLocation += 1;
                 }
             }
@@ -339,8 +356,8 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
 
         if(dwarf_child(fa_die, &child_die, &err)==DW_DLV_OK){
             walkDieTree(cu_die, dbg, child_die, range, is_info, indent+1);
+            dwarf_dealloc_die(child_die);
         }
-        
     }while(dwarf_siblingof_b(dbg, fa_die, is_info, &fa_die, &err) == DW_DLV_OK);
 }
 
@@ -356,6 +373,7 @@ int main(int argc, char *argv[]) {
         if (strcmp(argv[i], "-o")==0 ||
             strcmp(argv[i], "--output") == 0) {
                 jsonFileStr = string(argv[i+1]);
+                jsonOut = ofstream(jsonFileStr);
                 ++i;
         }else if (strcmp(argv[i], "-nj") == 0) {
             useJson = 0;
@@ -388,10 +406,12 @@ int main(int argc, char *argv[]) {
     }
     testFDE(dbg, printFDE);
 
+    if (useJson) {
+        jsonOut << "[\n";
+    }
     Dwarf_Die cu_die;
     bool is_info = true;
     int res = 0;
-    bool isFirstCu = true;
     while(!noTraverse){
         res = dwarf_next_cu_header_d(dbg, is_info, &cu_header_length, &version_stamp, &abbrev_offset, &address_size, &length_size, &extension_size, 
             &type_signature, &typeoffset, &next_cu_header, &header_cu_type, &err);
@@ -416,25 +436,27 @@ int main(int argc, char *argv[]) {
 
         walkDieTree(cu_die, dbg, cu_die, Range::createFromDie(cu_die), is_info, 0);
 
-        if(isFirstCu){
-            isFirstCu = false;
-        }
+        dwarf_dealloc_die(cu_die);
     }
     dwarf_finish(dbg);
     close(fd);
 
-    // output json result
-    if(useJson){
-        string jsonStr = allJson.dump(4);
-        if (jsonFileStr!="") {
-            fstream out(jsonFileStr.c_str(), ios::out);
-            out << jsonStr << endl;
-            out.close();
-        }else{
-            cout << jsonStr << endl;
-        }
-        
+    if (useJson) {
+        jsonOut << "\n]";
     }
+    jsonOut.close();
+    // output json result
+    // if(useJson){
+    //     string jsonStr = allJson.dump(4);
+    //     if (jsonFileStr!="") {
+    //         fstream out(jsonFileStr.c_str(), ios::out);
+    //         out << jsonStr << endl;
+    //         out.close();
+    //     }else{
+    //         cout << jsonStr << endl;
+    //     }
+        
+    // }
 
     // output statistics
     cout<<"---------------- statistics ----------------"<<endl;

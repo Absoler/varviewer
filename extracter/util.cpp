@@ -41,9 +41,12 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name){
             dwarf_whatform(name_attr, &name_form, &err);
             if(name_form==DW_FORM_string||name_form==DW_FORM_line_strp||name_form==DW_FORM_strp){
                 res = dwarf_formstring(name_attr, name, &err);
+                dwarf_dealloc_attribute(name_attr);
                 return res;
             }
         }
+
+        dwarf_dealloc_attribute(name_attr);
     }else if(has_origin){
         Dwarf_Attribute off_attr;
         Dwarf_Half off_form;
@@ -74,6 +77,7 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name){
         Dwarf_Bool has_name = true;
         res = dwarf_hasattr(origin_die, DW_AT_name, &has_name, &err);
         if(!has_name){
+            dwarf_dealloc_attribute(off_attr);
             return 1;
         }
         dwarf_attr(origin_die, DW_AT_name, &name_attr, &err);
@@ -81,9 +85,12 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name){
             dwarf_whatform(name_attr, &name_form, &err);
             if(name_form==DW_FORM_string||name_form==DW_FORM_line_strp||name_form==DW_FORM_strp){
                 res = dwarf_formstring(name_attr, name, &err);
+                dwarf_dealloc_attribute(name_attr);
                 return res;
             }
         }
+        dwarf_dealloc_attribute(off_attr);
+        dwarf_dealloc_attribute(name_attr);
     }
     return 0;
 }
