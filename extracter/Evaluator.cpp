@@ -437,6 +437,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
     Dwarf_Error err;
     Dwarf_Loc_Head_c loclist_head;
     Dwarf_Unsigned locentry_len;
+    Statistics statistics;
     if(loc_form!=DW_FORM_sec_offset&&
         loc_form!=DW_FORM_exprloc&&
         loc_form!=DW_FORM_block&&
@@ -478,12 +479,12 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
             return res;
         }
 
-        AddressExp addrExp;
         
         if(loclist_expr_op_count == 0){
-            addrExp.empty = true;
+            continue;
         }
         
+        AddressExp addrExp;
 
         if(!debug_addr_unavailable){
             addrExp.startpc = lopc;
@@ -504,7 +505,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
         Dwarf_Unsigned op1, op2, op3, offsetForBranch;
         Dwarf_Unsigned piece_base = 0;
 
-        bool last_is_piece = false;
+        bool last_is_piece = false;     // last operation is DW_OP_piece
         
         std::map<Dwarf_Unsigned, Dwarf_Unsigned> offset_to_index;
         
@@ -516,6 +517,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
                 
             }
             offset_to_index[offsetForBranch] = j;
+            statistics.addOp(op);
 
             if((op>=DW_OP_reg0&&op<=DW_OP_reg31) || op==DW_OP_regx){
                 // reg addressing
@@ -556,6 +558,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
                             addrExp.setExpFrom(stk.top());
                         }
                     }
+                    addrExp.variable_type = statistics.solveOneExpr();
                     res.addrs.push_back(addrExp);
                     addrExp.resetData();
                 }
@@ -640,6 +643,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
         }
 
         if(!last_is_piece){
+            addrExp.variable_type = statistics.solveOneExpr();
             res.addrs.push_back(addrExp);
         }
 

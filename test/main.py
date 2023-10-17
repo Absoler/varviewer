@@ -1,6 +1,8 @@
 #!/usr/local/bin/python3
 
 import sys, os, re
+import json
+from util import VariableType
 
 # usually `./random`
 testPath = sys.argv[1]
@@ -16,9 +18,12 @@ gdbTempScriptPath = "gdb.x"
 resultRe = re.compile(r'correct (?P<correct>\d+) / (?P<all>\d+)')
 sumCorrect, sumAll = 0, 0
 
+with open(testOutputPath, "w") as resultFile:
+    resultFile.write(f"[\n")
+
 for i in range(startInd, testCount):
     testFileName = f"{testPath}/random_{i}"
-    if os.system(testFileName) != 0:
+    if os.system(f"timeout 3s {testFileName}") != 0:
         continue
     if os.system(f"../extracter/extracter {testFileName} -o {testFileName}.var > /dev/null 2>&1") != 0:
         continue
@@ -33,19 +38,40 @@ y'''
         gdbTempScript.write(gdbScriptContent)
     os.system(f"gdb {testFileName} -x {gdbTempScriptPath}")
 
-resultFile = open(testOutputPath, "r")
-for line in resultFile.readlines():
-    line = line.strip()
-    if not line:
-        continue
-    matchObj = resultRe.search(line)
-    if not matchObj:
-        continue
-    correct, all = int(matchObj.group('correct')), int(matchObj.group('all'))
-    sumCorrect += correct
-    sumAll += all
+    if i < testCount - 1:
+        with open(testOutputPath, "a") as resultFile:
+            resultFile.write(f",\n")
 
-outputInfo = f'''test {testCount} files in total
-match {sumCorrect} successfully of {sumAll}'''
+resultFile = open(testOutputPath, "a+")
+resultFile.write(f"\n]")
+resultFile.seek(0, 0)
+resultJsonList = json.load(resultFile)
+resultFile.close()
 
-print(outputInfo)
+resultJson = {}
+for i in range(len(resultJsonList)):
+    res = resultJsonList[i]
+    if i == 0:
+        resultJson = res
+    
+    else:
+        for t in VariableType:
+            resultJson[t.name][0] += res[t.name][0]
+            resultJson[t.name][1] += res[t.name][1]
+
+print(json.dumps(resultJson, indent=4))
+# for line in resultFile.readlines():
+#     line = line.strip()
+#     if not line:
+#         continue
+#     matchObj = resultRe.search(line)
+#     if not matchObj:
+#         continue
+#     correct, all = int(matchObj.group('correct')), int(matchObj.group('all'))
+#     sumCorrect += correct
+#     sumAll += all
+
+# outputInfo = f'''test {testCount} files in total
+# match {sumCorrect} successfully of {sumAll}'''
+
+# print(outputInfo)

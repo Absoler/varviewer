@@ -271,7 +271,7 @@ class AddressExp(Expression):
                 <AddressExp>
             ]
             "name" : <string>
-            "is_variable" : <bool>
+            "variable_type" : <int>
             "decl_file" : <string>
             "decl_row"  : <Dwarf_Unsigned>
             "decl_col"  : <Dwarf_Unsigned>
@@ -314,6 +314,7 @@ class AddressExp(Expression):
             self.needCFA = jsonAddrExp["needCFA"]
             self.cfa_pcs:list[int] = jsonAddrExp["cfa_pcs"] if self.needCFA else []
             self.cfa_values:list[AddressExp] = jsonAddrExp["cfa_values"] if self.needCFA else []
+            self.variable_type:VariableType = VariableType(jsonAddrExp["variable_type"])
 
         else:
             self.reg = 128
@@ -327,21 +328,19 @@ class AddressExp(Expression):
             self.needCFA = False
             self.cfa_pcs:list[int] = []
             self.cfa_values:list[AddressExp] = []
+            self.variable_type = VariableType.INVALID
 
 
         self.name:str = ""
         self.decl_file:str = ""
         
-        ''' `True` if a variable else a parameter
-        '''
-        self.is_variable = True
 
         
     def __lt__(self, v):
-        return self.startpc < v.startpc or (self.startpc == v.startpc and self.endpc < v.endpc)
+        return self.startpc < v.startpc or (self.startpc == v.startpc and self.endpc < v.endpc) or (not self.variable_type == VariableType.MEM_GLOABL and v.variable_type == VariableType.MEM_GLOABL)
     
     def __eq__(self, v) -> bool:
-        return self.startpc == v.startpc and self.endpc == v.endpc
+        return self.startpc == v.startpc and self.endpc == v.endpc and self.variable_type == v.variable_type
     
     def __hash__(self) -> int:
         return hash(self.name + "+" + self.decl_file)
@@ -382,6 +381,7 @@ class VarMgr:
     def __init__(self) -> None:
         self.vars:list[AddressExp] = []
         self.local_ind:int = -1
+        self.gloabl_int:int = -1
 
     def load(self, path:str):
         self.vars.clear()
@@ -399,7 +399,6 @@ class VarMgr:
                 var:AddressExp = AddressExp(addrExp)
                 var.name = addr["name"]
                 var.decl_file = addr["decl_file"]
-                var.is_variable = addr["is_variable"]
                 self.vars.append(var)
         
         print(f"load {path} done!", file=sys.stderr)
@@ -409,7 +408,10 @@ class VarMgr:
         self.globals = []
         for i in range(0, len(self.vars)):
             if self.vars[i].startpc == 0 and self.vars[i].endpc == 0:
-                self.globals.append(self.vars[i])
+                if self.vars[i].variable_type == VariableType.MEM_GLOABL:
+                    self.globals.append(self.vars[i])
+                    if self.global_ind == -1:
+                        self.global_ind = i
             else:
                 self.local_ind = i
                 break

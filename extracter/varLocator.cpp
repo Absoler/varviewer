@@ -37,7 +37,7 @@ int varNoLocation = 0;
 Statistics statistics;
 
 
-int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range range){
+int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range range, char *name){
     int res;
     Dwarf_Error err;
     Dwarf_Attribute location_attr;
@@ -54,9 +54,6 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range r
         return 1;
     }
 
-    char *name = NULL;
-    res = get_name(dbg, var_die, &name);
-    simple_handle_err(res)
     if(name)
         addr.name = string(name);
     
@@ -69,7 +66,7 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range r
 
     Dwarf_Half tag;
     dwarf_tag(var_die, &tag, &err);
-    addr.is_variable = (tag == DW_TAG_variable);
+    // addr.is_variable = (tag == DW_TAG_variable);
 
     if(useJson){
         json addrJson = createJsonforAddress(addr);
@@ -314,12 +311,12 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
 
             if (tag==DW_TAG_variable||tag==DW_TAG_formal_parameter){
                 Dwarf_Bool hasLoc = false;
-                // char *var_name = nullptr;
-                // res = get_name(dbg, fa_die, &var_name);
+                char *var_name = nullptr;
+                res = get_name(dbg, fa_die, &var_name);
                 
-                // if(res == DW_DLV_OK){
-                //     printf(" name: %s", var_name);
-                // }
+                if(res == DW_DLV_OK){
+                    printf(" name: %s", var_name);
+                }
 
                 res = dwarf_hasattr(fa_die, DW_AT_location, &hasLoc, &err);
                 
@@ -341,7 +338,7 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
                         statistics.addVar(tag);
                         print_raw_location(dbg, location_attr, form, indent+1);
                     }else{
-                        test_evaluator(dbg, cu_die, fa_die, range);
+                        test_evaluator(dbg, cu_die, fa_die, range, var_name);
                     }
 
                     dwarf_dealloc_attribute(location_attr);

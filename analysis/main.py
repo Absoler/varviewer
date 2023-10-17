@@ -26,6 +26,7 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output", help="specify the output json file", default="")
     parser.add_argument("-tP", "--tempPath", help="specify the tmp path", default="/tmp/varviewer")
     parser.add_argument("-dV", "--dumpVex", action="store_true", help="dump vex ir statements for debugging")
+    parser.add_argument("-tG", "--testGlobal", action="store_true", help="")
     parser.add_argument("-fP", "--filterPrefix", help="only match variables defined in given path", default="")
     parser.add_argument("-fA", "--filterAddressPath", help="specify a file containing cared code range", default="")
     args = parser.parse_args()

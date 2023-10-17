@@ -80,7 +80,7 @@ def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
         return ""
 
 class Result:
-    def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, irsb_addr=0, ind=0, offset:int = 0) -> None:
+    def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, variable_type:VariableType, irsb_addr=0, ind=0, offset:int = 0) -> None:
         self.addr:int = addr
         self.name:str = ""
         self.matchPos:MatchPosition = matchPos
@@ -89,6 +89,7 @@ class Result:
         '''
         self.indirect:int = indirect
         self.dwarfType:DwarfType = dwarfType
+        self.variable_type:VariableType = variable_type
         self.offset:int = offset
         self.expression = ""
         self.irsb_addr = irsb_addr
@@ -100,17 +101,19 @@ class Result:
         self.uncertain:bool = False
     
     def keys(self):
-        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'offset', 'expression', 'uncertain')
+        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'variable_type', 'offset', 'expression', 'uncertain')
     
     def __getitem__(self, item):
         if item == "matchPos":
             return self.matchPos.value
         elif item == "dwarfType":
             return self.dwarfType.value
+        elif item == 'variable_type':
+            return self.variable_type.value
         return getattr(self, item)
     
     def __str__(self) -> str:
-        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} pos:{self.matchPos.name} indirect_level:{self.indirect} offset:{self.offset} {self.piece_num}:{self.irsb_addr}:{self.ind}"
+        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} variable_type:{self.variable_type.name} pos:{self.matchPos.name} indirect_level:{self.indirect} offset:{self.offset} {self.piece_num}:{self.irsb_addr}:{self.ind}"
     
     def update(self, name:str, piece_num:int):
         self.name = name

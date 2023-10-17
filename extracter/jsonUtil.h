@@ -12,7 +12,6 @@ class AddressExp;
             <AddressExp>
         ]
         "name" : <string>
-        "is_variable" : <bool>
         "decl_file" : <string>
         "decl_row"  : <Dwarf_Unsigned>
         "decl_col"  : <Dwarf_Unsigned>
@@ -29,6 +28,7 @@ json createJsonforAddress(const Address& addr);
         Expression part ...
 
         "type" : <int>
+        "variable_type" : <int>
         "startpc" : <Dwarf_Addr>
         "endpc" : <Dwarf_Addr>
         "reg" : <Dwarf_Half>
