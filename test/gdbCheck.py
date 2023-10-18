@@ -50,7 +50,7 @@ class CheckVariablesCommand(gdb.Command):
         '''
         args = gdb.string_to_argv(args)
         self.load(args[0])
-        self.output_file = open(args[1], "a")
+        self.output_file = open(args[1], "w")
 
         gdb.events.exited.connect(exitHandler)
         correct_cnt:int = 0
@@ -58,6 +58,8 @@ class CheckVariablesCommand(gdb.Command):
         hit_cnt:int = 0
         fail_oracle_cnt:int = 0
         outputJson = {}
+        breakpointNum = 1
+        breakpointMap = {}
         for t in VariableType:
             outputJson[t.name] = [0, 0]
 
@@ -90,6 +92,9 @@ class CheckVariablesCommand(gdb.Command):
         # break at all match positions
         for addr in self.addrs:
             gdb.execute(f"b *{addr}")
+            breakpointMap[addr] = breakpointNum
+            print(f"{addr} : {breakpointNum}")
+            breakpointNum += 1
 
         gdb.execute("start")
 
@@ -127,6 +132,7 @@ class CheckVariablesCommand(gdb.Command):
             hit_cnt += 1
             snapshot:list[tuple] = []
             addr = get_pc()
+            gdb.execute(f"d {breakpointMap[addr]}")
 
             if len(self.json_map[addr]) == 0:
                 print(f"{addr:X} has no vars")

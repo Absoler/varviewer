@@ -8,18 +8,15 @@ from util import VariableType
 testPath = sys.argv[1]
 # number of already prepared files
 testCount = int(sys.argv[2])
-# output file of test results
-testOutputPath = sys.argv[3]
 # startIndex of test cases
-startInd = int(sys.argv[4]) if len(sys.argv) > 4 else 0
+startInd = int(sys.argv[3]) if len(sys.argv) > 3 else 0
 
 gdbScriptContent = ""
 gdbTempScriptPath = "gdb.x"
 resultRe = re.compile(r'correct (?P<correct>\d+) / (?P<all>\d+)')
 sumCorrect, sumAll = 0, 0
+resultJson = { key.name : [0, 0] for key in VariableType}
 
-with open(testOutputPath, "w") as resultFile:
-    resultFile.write(f"[\n")
 
 for i in range(startInd, testCount):
     testFileName = f"{testPath}/random_{i}"
@@ -31,33 +28,19 @@ for i in range(startInd, testCount):
         continue
     gdbScriptContent = f'''set pagination off
 source gdbCheck.py
-check_variables {testFileName}.match {testOutputPath}
+check_variables {testFileName}.match {testFileName}.count
 quit
 y'''
     with open(gdbTempScriptPath, "w") as gdbTempScript:
         gdbTempScript.write(gdbScriptContent)
     os.system(f"gdb {testFileName} -x {gdbTempScriptPath}")
 
-    if i < testCount - 1:
-        with open(testOutputPath, "a") as resultFile:
-            resultFile.write(f",\n")
+    with open(f"{testFileName}.count", "r") as countFile:
+        countJson = json.load(countFile)
+        for key in VariableType:
+            resultJson[key.name][0] += countJson[key.name][0]
+            resultJson[key.name][1] += countJson[key.name][1]
 
-resultFile = open(testOutputPath, "a+")
-resultFile.write(f"\n]")
-resultFile.seek(0, 0)
-resultJsonList = json.load(resultFile)
-resultFile.close()
-
-resultJson = {}
-for i in range(len(resultJsonList)):
-    res = resultJsonList[i]
-    if i == 0:
-        resultJson = res
-    
-    else:
-        for t in VariableType:
-            resultJson[t.name][0] += res[t.name][0]
-            resultJson[t.name][1] += res[t.name][1]
 
 print(json.dumps(resultJson, indent=4))
 # for line in resultFile.readlines():
