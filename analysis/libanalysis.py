@@ -740,6 +740,7 @@ class Analysis:
                         vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.src_value)
+                        setattr(vex_expr, "src_size", getBinarySize(vex_expr))
                         vex_exprs.append(vex_expr)
 
 
@@ -748,6 +749,7 @@ class Analysis:
                     if data_size < 64:
                         vex_expr = vex_expr & BitVecVal(and_mask[data_size], 64)
                     setpos(vex_expr, MatchPosition.dst_value)
+                    setattr(vex_expr, "src_size", -1)
                     vex_exprs.append(vex_expr)
                     hasCandidate = True
                 
@@ -762,6 +764,7 @@ class Analysis:
                         vex_expr = self.get_z3_expr_from_vex(ir.addr, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.dst_addr)
+                        setattr(vex_expr, "src_size", -1)
                         vex_exprs.append(vex_expr)
                         hasCandidate = True
 
@@ -770,6 +773,7 @@ class Analysis:
                         vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.src_value)
+                        setattr(vex_expr, "src_size", getBinarySize(vex_expr))
                         vex_exprs.append(vex_expr)
                         hasCandidate = True
 
@@ -782,6 +786,7 @@ class Analysis:
                         vex_expr = self.get_z3_expr_from_vex(ir.data.addr, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.src_addr)
+                        setattr(vex_expr, "src_size", -1)
                         vex_exprs.append(vex_expr)
                         hasCandidate = True
 
@@ -804,20 +809,20 @@ class Analysis:
                             reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i))
                         continue
 
-                    conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
+                    # conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
+                    conds:list = [loadu_cond, loads_cond]
                     
-                    
-                    if useOffset:
+                    if useOffset and ty == DwarfType.VALUE:
                         if dwarf_expr != None:
                             offset = getConstOffset(vex_expr, dwarf_expr, conds)
                             if isinstance(offset, BitVecNumRef):
-                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long()))
+                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                                 continue
 
                         if dwarf_addr != None:
                             offset = getConstOffset(vex_expr, dwarf_addr, conds)
                             if isinstance(offset, BitVecNumRef):
-                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long()))
+                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                                 continue
 
                     else:
@@ -826,7 +831,7 @@ class Analysis:
                             slv.add(*conds)
                             slv.add(vex_expr != dwarf_expr)
                             if slv.check() == unsat:
-                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i))
+                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
                                 continue
                         
                         if dwarf_addr != None:
@@ -834,7 +839,7 @@ class Analysis:
                             slv.add(*conds)
                             slv.add(vex_expr != dwarf_addr)
                             if slv.check() == unsat:
-                                reses.append(Result(curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i))
+                                reses.append(Result(curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
 
 
                 

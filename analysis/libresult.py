@@ -25,6 +25,13 @@ class MatchPosition(Enum):
     dst_value = 4
     dst_addr = 8
 
+size_str = {
+    8 : "char",
+    16 : "short",
+    32 : "int",
+    64 : "long long"
+}
+
 def getMemTypeStr(memSize:MemorySize):
     if memSize == MemorySize.UINT8 or memSize == MemorySize.INT8:
         return "char *"
@@ -80,10 +87,15 @@ def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
         return ""
 
 class Result:
-    def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, variable_type:VariableType, irsb_addr=0, ind=0, offset:int = 0) -> None:
+    def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, variable_type:VariableType, irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
         self.addr:int = addr
         self.name:str = ""
         self.matchPos:MatchPosition = matchPos
+        ''' src and dst operand in x86 mov instruction may have different size
+            if matchPos is `src_value` and we need use dst value to replace src value,
+            we need keep the size of dst value the same as src value
+        '''
+        self.src_size:int = src_size
         ''' -1, 0
             match to &v, v
         '''
@@ -185,6 +197,7 @@ class Result:
                 value:str = get_value_str_of_operand(insn, dst_ind)
                 if not value:
                     return False
+                value = f"({size_str[self.src_size]})({value})@(unsigned {size_str[self.src_size]})({value})"
                 self.expression = value
         
         self.addOffset()

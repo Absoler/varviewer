@@ -437,7 +437,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
     Dwarf_Error err;
     Dwarf_Loc_Head_c loclist_head;
     Dwarf_Unsigned locentry_len;
-    Statistics statistics;
+    
     if(loc_form!=DW_FORM_sec_offset&&
         loc_form!=DW_FORM_exprloc&&
         loc_form!=DW_FORM_block&&
@@ -575,6 +575,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
                 }else{
                     exp.setExpFrom(entry_value);
                 }
+                exp.valid = false;
                 stk.push(exp);
             
             }else if (op==DW_OP_bra || op==DW_OP_skip) {

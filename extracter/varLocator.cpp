@@ -305,7 +305,7 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
 
             }
 
-            if(tag==DW_TAG_lexical_block){
+            if(tag==DW_TAG_lexical_block || tag==DW_TAG_subprogram){
                 range.setFromDie(fa_die);
             }
 
@@ -334,8 +334,8 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
                         // fprintf(stderr, "%s\n", form_name);
                     }
                     
+                    statistics.addVar(tag);
                     if(printRawLoc){
-                        statistics.addVar(tag);
                         print_raw_location(dbg, location_attr, form, indent+1);
                     }else{
                         test_evaluator(dbg, cu_die, fa_die, range, var_name);
@@ -355,6 +355,7 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
             walkDieTree(cu_die, dbg, child_die, range, is_info, indent+1);
             dwarf_dealloc_die(child_die);
         }
+        range.clear();
     }while(dwarf_siblingof_b(dbg, fa_die, is_info, &fa_die, &err) == DW_DLV_OK);
 }
 

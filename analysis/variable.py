@@ -135,7 +135,7 @@ class Expression:
 
 
     def is_const(self):
-        res = (self.regs == None and self.mem == None and not self.empty)
+        res = (self.regs == None and self.mem == None and not self.empty and not self.isCFA)
         if self.hasChild:
             res = res and self.sub1.is_const()
             res = res and self.sub2.is_const() if self.sub2 != None else res

@@ -73,8 +73,14 @@ class CheckVariablesCommand(gdb.Command):
         
         def get_var_value_by_name(name:str):
             return int(gdb.parse_and_eval(name))
+        
+        def get_type_str(var:dict):
+            type_str = str(gdb.lookup_symbol(var["name"])[0].type)
+            if var["indirect"] == -1:
+                type_str = type_str+" *"
+            return type_str
 
-        def get_candidate_values(var:dict) -> set:
+        def get_candidate_values(var:dict, type_str:str) -> set:
             if var["uncertain"] == "false":
                 return {gdb.parse_and_eval(expression)}
             candidate_names = [s for s in expression.split("@") if s != ""]
@@ -82,10 +88,10 @@ class CheckVariablesCommand(gdb.Command):
             for name in candidate_names:
                 if "xmm" in name:
                     print(f"{name}.v2_int64[0]")
-                    candidate_values.append(int(gdb.parse_and_eval(f"{name}.v2_int64[0]")))
+                    candidate_values.append(int(gdb.parse_and_eval(f"({type_str})({name}.v2_int64[0])")))
                 
                 else:
-                    candidate_values.append(int(gdb.parse_and_eval(name)))
+                    candidate_values.append(int(gdb.parse_and_eval(f"({type_str})({name})")))
 
             return set(candidate_values)
 
@@ -96,7 +102,7 @@ class CheckVariablesCommand(gdb.Command):
             print(f"{addr} : {breakpointNum}")
             breakpointNum += 1
 
-        gdb.execute("start")
+        gdb.execute("r")
 
         # record last variable and oracle if its `matchPos` is `src_value`
         snapshot = []
@@ -104,10 +110,10 @@ class CheckVariablesCommand(gdb.Command):
         while True:
             if len(snapshot) > 0:
                 gdb.execute("si")
-                for var, oracle in snapshot:
+                for var, oracle, type_str in snapshot:
                     print(var["expression"])
                     # our:int = int(gdb.parse_and_eval(var["expression"]))
-                    ours:set[int] = get_candidate_values(var)
+                    ours:set[int] = get_candidate_values(var, type_str)
                     variable_type:VariableType = VariableType(var["variable_type"])
                     outputJson[variable_type.name][1] += 1
                     if oracle in ours:
@@ -132,6 +138,7 @@ class CheckVariablesCommand(gdb.Command):
             hit_cnt += 1
             snapshot:list[tuple] = []
             addr = get_pc()
+            print(addr in breakpointMap)
             gdb.execute(f"d {breakpointMap[addr]}")
 
             if len(self.json_map[addr]) == 0:
@@ -149,14 +156,15 @@ class CheckVariablesCommand(gdb.Command):
                     print(f"\n### fail get oracle of {name} at 0x{var['addr']:X}")
                     continue
 
+                type_str = get_type_str(var)
                 if matchPos == 1:
                     # `src_value`, check at next instrucion
-                    snapshot.append((var, oracle))
+                    snapshot.append((var, oracle, type_str))
 
                 else:
                     print('parse_and_eval(expression)')
                     # our:int = int(gdb.parse_and_eval(expression))
-                    ours:set[int] = get_candidate_values(var)
+                    ours:set[int] = get_candidate_values(var, type_str)
                     variable_type:VariableType = VariableType(var["variable_type"])
                     outputJson[variable_type.name][1] += 1
                     if oracle in ours:

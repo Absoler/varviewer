@@ -237,3 +237,27 @@ def get_addr(z3Expr:BitVecRef) -> BitVecRef:
     if z3Expr.decl().name().startswith("load"):
         return z3Expr.children()[0]
     return None
+
+def getBinarySize(exp:BitVecRef):
+    ''' if exp has `load` operation, then return the size of load
+        
+        if not, return the max size of register, for convenience
+        we choose to guess now, because registers smaller than 64bit
+        will have a father of `Extract` type, we use the extract size
+
+        we do this for get size of source operand of an instruction
+    '''
+    children = [exp]
+    while len(children) > 0:
+        curExp = children[0]
+        children.pop(0)
+        if curExp.decl().name().startswith("load"):
+            return int(curExp.decl().name()[4:])
+        
+        children.extend(curExp.children())
+
+    reg_sizes = list(guess_reg_type_smaller(exp).values())
+    ''' reg is 64-bit as default, if not found extraction, it implies the register(s)
+        are all 64-bit
+    '''
+    return max(reg_sizes) if len(reg_sizes) > 0 else 64
