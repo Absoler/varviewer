@@ -9,6 +9,17 @@
     } \
 }while(0);
 
+#define handle_err(res, err) do{ \
+    if (res == DW_DLV_ERROR) { \
+        char *msg = dwarf_errmsg(err); \
+        printf("%s\n", msg); \
+    } \
+    if (res != DW_DLV_OK ) { \
+        return res; \
+    } \
+}while(0);
+
+
 #define likely(x) __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
 
@@ -21,3 +32,4 @@ void printindent(int indent);
 std::string addindent(int indent);
 
 template<typename T> std::string toHex(T v);
+int log2(int x);

@@ -118,3 +118,28 @@ string toHex(T v){
     return res;
 }
 template string toHex(Dwarf_Unsigned v);
+
+int log2(int x) {
+    int res = 0;
+    if (x & 0xffff0000) {
+        res += 16;
+        x >>= 16;
+    }
+    if (x & 0x0000ff00) {
+        res += 8;
+        x >>= 8;
+    }
+    if (x & 0x000000f0) {
+        res += 4;
+        x >>= 4;
+    }
+    if (x & 0x0000000c) {
+        res += 2;
+        x >>= 2;
+    }
+    if (x & 0x00000002) {
+        res += 1;
+        x >>= 1;
+    }
+    return res;
+}

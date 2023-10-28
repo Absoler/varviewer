@@ -9,12 +9,8 @@
 #include "ranges.h"
 #include "util.h"
 #include "statistics.h"
+#include "type.h"
 
-#define simple_handle_err(res) do{ \
-    if(res!=DW_DLV_OK){ \
-        return res; \
-    } \
-}while(0);
 
 extern Statistics statistics;
 

@@ -271,11 +271,9 @@ class AddressExp(Expression):
                 <AddressExp>
             ]
             "name" : <string>
-            "variable_type" : <int>
             "decl_file" : <string>
             "decl_row"  : <Dwarf_Unsigned>
             "decl_col"  : <Dwarf_Unsigned>
-            "piece_num" : <int>
             "valid" : <bool>
         }
 
@@ -285,6 +283,7 @@ class AddressExp(Expression):
             Expression part...
 
             "type" : <int>
+            "variable_type" : <int>
             "startpc" : <Dwarf_Addr>
             "endpc" : <Dwarf_Addr>
             "reg" : <Dwarf_Half>

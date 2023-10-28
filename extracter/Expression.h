@@ -6,6 +6,7 @@
 #include <string>
 
 #include "json.hpp"
+#include "type.h"
 using json = nlohmann::json;
 
 #define REG_END 128

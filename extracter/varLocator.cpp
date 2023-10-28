@@ -318,6 +318,12 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
                     printf(" name: %s", var_name);
                 }
 
+                Type *type_p;
+                res = Type::parse_type_die(dbg, fa_die, &type_p);
+                if (res == DW_DLV_OK) {
+                    printf(" %s", type_p->to_string().c_str());
+                }
+
                 res = dwarf_hasattr(fa_die, DW_AT_location, &hasLoc, &err);
                 
                 
@@ -434,6 +440,7 @@ int main(int argc, char *argv[]) {
 
         walkDieTree(cu_die, dbg, cu_die, Range::createFromDie(cu_die), is_info, 0);
 
+        Type::finish();
         dwarf_dealloc_die(cu_die);
     }
     dwarf_finish(dbg);
