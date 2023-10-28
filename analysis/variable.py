@@ -1,5 +1,6 @@
 #!/usr/local/bin/python3
 from bisect import bisect_right
+from functools import cmp_to_key
 import sys
 import json
 from iced_x86 import *
@@ -335,14 +336,11 @@ class AddressExp(Expression):
         
 
         
-    def __lt__(self, v):
-        return self.startpc < v.startpc or (self.startpc == v.startpc and self.endpc < v.endpc) or (not self.variable_type == VariableType.MEM_GLOABL and v.variable_type == VariableType.MEM_GLOABL)
-    
     def __eq__(self, v) -> bool:
-        return self.startpc == v.startpc and self.endpc == v.endpc and self.variable_type == v.variable_type
+        return self.decl_file == v.decl_file and self.name == v.name and self.piece_start == v.piece_start and self.startpc == v.startpc
     
     def __hash__(self) -> int:
-        return hash(self.name + "+" + self.decl_file)
+        return hash(self.name) + hash(self.decl_file) + hash(self.piece_start) + hash(self.startpc)
 
     def is_same_simple_expr(self, other):
         res = self.offset == other.offset
@@ -372,7 +370,16 @@ class AddressExp(Expression):
         return super().get_Z3_expr(hint)
 
 
-
+def cmp_addrExp(x:AddressExp, y:AddressExp) -> int:
+    if x.startpc != y.startpc:
+        return x.startpc - y.startpc
+    elif x.endpc != y.endpc:
+        return x.endpc - y.endpc
+    elif x.variable_type == VariableType.MEM_GLOABL and y.variable_type != VariableType.MEM_GLOABL:
+        return -1
+    
+    else:
+        return 1
 
 
 class VarMgr:
@@ -380,7 +387,23 @@ class VarMgr:
     def __init__(self) -> None:
         self.vars:list[AddressExp] = []
         self.local_ind:int = -1
-        self.gloabl_int:int = -1
+        self.global_ind:int = -1
+
+    def bisect_right(self, pos:int) -> int:
+        ''' find the id of the largest addrExp less than `pc`
+        '''
+        lo, hi = 0, len(self.vars)
+        puppet = AddressExp()
+        puppet.startpc = pos
+        puppet.endpc = (1<<64)
+
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if cmp_addrExp(puppet, self.vars[mid]) < 0:
+                hi = mid
+            else:
+                lo = mid + 1
+        return lo
 
     def load(self, path:str):
         self.vars.clear()
@@ -402,34 +425,33 @@ class VarMgr:
         
         print(f"load {path} done!", file=sys.stderr)
 
-        self.vars.sort()
+        self.vars = sorted(self.vars, key=cmp_to_key(cmp_addrExp))
         
         self.globals = []
         for i in range(0, len(self.vars)):
             if self.vars[i].startpc == 0 and self.vars[i].endpc == 0:
                 if self.vars[i].variable_type == VariableType.MEM_GLOABL:
                     self.globals.append(self.vars[i])
-                    if self.global_ind == -1:
-                        self.global_ind = i
+                    self.global_ind = i
+
             else:
                 self.local_ind = i
                 break
     
-    def find(self, pos:int, varName:str = "", varNameLst:list[str] = [], decl_file:str = "") -> set[AddressExp]:
+    def find(self, pos:int, varName:str = "", varNameLst:list[str] = [], decl_file:str = "", care_global:bool = False) -> set[AddressExp]:
         res = set()
-        puppet = AddressExp()
-        puppet.startpc = pos
-        puppet.endpc = (1<<64)
-        start_ind = bisect_right(self.vars, puppet) # find the right bound
+        start_ind = self.bisect_right(pos) # find the right bound
         for i in range(start_ind-1, 0, -1):
             if self.vars[i].startpc <= pos and self.vars[i].endpc>pos:
+                print(self.vars[i].startpc)
                 res.add(self.vars[i])
             
             if pos - self.vars[i].startpc > 0x20000:
                 break
         
-        for g in self.globals:
-            res.add(g)
+        if care_global:
+            for g in self.globals:
+                res.add(g)
 
         # use varName
         if varName != "":
@@ -445,10 +467,7 @@ class VarMgr:
         return res
     
     def getVar(self, startpc:int, endpc:int, varName:str) -> AddressExp:
-        puppet = AddressExp()
-        puppet.startpc = startpc
-        puppet.endpc = (1<<64)
-        start_ind = bisect_right(self.vars, puppet)
+        start_ind = self.bisect_right(startpc)
         for i in range(start_ind-1, 0, -1):
             if self.vars[i].endpc == endpc and self.vars[i].name == varName:
                 return self.vars[i]
