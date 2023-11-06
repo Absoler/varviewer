@@ -78,6 +78,20 @@ class Expression:
             self.isCFA:bool = False
             self.father = None
     
+    def keys(self):
+        return ("sign", "offset", "regs", "mem", "mem_size", "empty",
+                "hasChild", "sub1", "sub2", "op", "isCFA")
+    
+    def __getitem__(self, item):
+        if item == "sub1" and self.sub1:
+            return dict(self.sub1)
+        elif item == "sub2" and self.sub2:
+            return dict(self.sub2)
+        elif item == "mem" and self.mem:
+            return dict(self.mem)
+        else:
+            return getattr(self, item)
+    
     def setExprFrom(self, exp):
         self.sign = exp.sign
         self.offset = exp.offset
@@ -333,9 +347,25 @@ class AddressExp(Expression):
 
         self.name:str = ""
         self.decl_file:str = ""
+        self.decl_row:int = 0
         
+    def keys(self):
+        return (*super().keys(), "reg", "type", "startpc", "endpc", 
+                "piece_start", "piece_size", "needCFA", "cfa_pcs", "cfa_values",
+                "variable_type", "name", "decl_file", "decl_row")
 
-        
+    def __getitem__(self, item):
+        if item == "sub1" and self.sub1:
+            return dict(self.sub1)
+        elif item == "sub2" and self.sub2:
+            return dict(self.sub2)
+        elif item == "mem" and self.mem:
+            return dict(self.mem)
+        elif item == "variable_type":
+            return self.variable_type.value
+        else:
+            return getattr(self, item)
+
     def __eq__(self, v) -> bool:
         return self.decl_file == v.decl_file and self.name == v.name and self.piece_start == v.piece_start and self.startpc == v.startpc
     
@@ -421,6 +451,7 @@ class VarMgr:
                 var:AddressExp = AddressExp(addrExp)
                 var.name = addr["name"]
                 var.decl_file = addr["decl_file"]
+                var.decl_row = int(addr["decl_row"])
                 self.vars.append(var)
         
         print(f"load {path} done!", file=sys.stderr)
@@ -443,7 +474,6 @@ class VarMgr:
         start_ind = self.bisect_right(pos) # find the right bound
         for i in range(start_ind-1, 0, -1):
             if self.vars[i].startpc <= pos and self.vars[i].endpc>pos:
-                print(self.vars[i].startpc)
                 res.add(self.vars[i])
             
             if pos - self.vars[i].startpc > 0x20000:

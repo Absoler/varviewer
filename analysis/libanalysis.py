@@ -12,7 +12,19 @@ from typing import NewType
 from libresult import *
 from variable import *
 import time
+import timeout_decorator
 
+
+@timeout_decorator.timeout(0.1)
+def solver_check(slv:Solver):
+    return slv.check()
+
+def solver_check_wrapper(slv:Solver):
+    try:
+        res = solver_check(slv)
+    except TimeoutError as e:
+        return unsat
+    return res
 
 def getConstOffset(exp1:BitVecRef, exp2:BitVecRef, conds:list):
     ''' return constant offset of two `BitVecRef` if can else `None` 
@@ -23,12 +35,12 @@ def getConstOffset(exp1:BitVecRef, exp2:BitVecRef, conds:list):
         slv.add(cond)
     off = BitVec("off", exp1.size())
     slv.add(exp1-exp2==off)
-    if slv.check():
+    if solver_check_wrapper(slv) == sat:
         m = slv.model()
         old_off = m.eval(off)
 
         slv.add(off!=old_off)
-        if slv.check() == unsat:
+        if solver_check_wrapper(slv) == unsat:
             return old_off
     return None
 
@@ -672,6 +684,9 @@ class Analysis:
 
 
     def match(self, addrExp:AddressExp, ty:DwarfType, piece_addrs:list, useOffset:bool, showTime:bool=False) -> list[Result]:
+        # statistic variable
+        potential_cnt = 0
+
         dwarf_expr:BitVecRef = addrExp.get_Z3_expr(Hint())
         variable_type:VariableType = addrExp.variable_type
         dwarf_regs = extract_regs_from_z3(dwarf_expr)
@@ -695,7 +710,7 @@ class Analysis:
             if node.addr not in self.irsb_map:
                 continue
             irsb:pyvex.block.IRSB = self.irsb_map[node.addr]
-
+            print(f"> meet {len(irsb.statements)} vex ir(s)")
 
             curAddr = -1
             tempFactBlock:TempFactBlock = self.temp_map[node]
@@ -722,7 +737,7 @@ class Analysis:
                 vex_expr:BitVecRef = None
                 vex_exprs:list[BitVecRef] = []
                 hasCandidate = False
-                
+
                 if isinstance(ir, pyvex.stmt.Put):
                     ''' put(reg) = tmp
                         
@@ -797,6 +812,7 @@ class Analysis:
                 if not hasCandidate:
                     continue
                 
+                potential_cnt += len(vex_exprs)
                 
                 for vex_expr in vex_exprs:
                     ''' avoid z3 match for register location description
@@ -815,13 +831,13 @@ class Analysis:
                     if useOffset and ty == DwarfType.VALUE:
                         if dwarf_expr != None:
                             offset = getConstOffset(vex_expr, dwarf_expr, conds)
-                            if isinstance(offset, BitVecNumRef):
+                            if isinstance(offset, BitVecNumRef) and abs(offset) < 4096:
                                 reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                                 continue
 
                         if dwarf_addr != None:
                             offset = getConstOffset(vex_expr, dwarf_addr, conds)
-                            if isinstance(offset, BitVecNumRef):
+                            if isinstance(offset, BitVecNumRef)and abs(offset) < 4096:
                                 reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                                 continue
 
@@ -830,7 +846,7 @@ class Analysis:
                             slv.reset()
                             slv.add(*conds)
                             slv.add(vex_expr != dwarf_expr)
-                            if slv.check() == unsat:
+                            if solver_check_wrapper(slv) == unsat:
                                 reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
                                 continue
                         
@@ -838,7 +854,7 @@ class Analysis:
                             slv.reset()
                             slv.add(*conds)
                             slv.add(vex_expr != dwarf_addr)
-                            if slv.check() == unsat:
+                            if solver_check_wrapper(slv) == unsat:
                                 reses.append(Result(curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
 
 
@@ -848,6 +864,7 @@ class Analysis:
                     print(f"---- match {time.time()-startTime}")
                     startTime = time.time()
         
+        print(f"< tried match {potential_cnt} potential vex expressions")
 
         return reses
 

@@ -11,5 +11,6 @@ for i in range(mgr.local_ind, len(mgr.vars)):
     '''
     addrExp = mgr.vars[i]
 
-    if addrExp.offset == 0 and addrExp.regs and not addrExp.mem and addrExp.type == 2:
-        print(f"{addrExp.startpc} {addrExp.endpc}")
+    if addrExp.decl_file == "/home/linux-6.0-rc6/lib/radix-tree.c" and addrExp.name == "rtp":
+        with open("t", "a") as f:
+            json.dump(dict(addrExp), f, indent=4)

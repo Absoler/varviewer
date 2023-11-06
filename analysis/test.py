@@ -18,7 +18,7 @@ if __name__ == "__main__":
 
     # prepare dwarf expression
     mgr = VarMgr()
-    jsonpath = "test.json"
+    jsonpath = "test.json" if len(sys.argv) <= 2 else sys.argv[2]
     mgr.load(jsonpath)
     addrExp = mgr.vars[0]
 
