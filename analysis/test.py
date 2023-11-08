@@ -58,6 +58,6 @@ if __name__ == "__main__":
 
     all_reses = []
     for res in reses:
-        res.update(addrExp.name, 0)
         res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
         print(res.__str__())
+        print(json.dumps(dict(res), indent=4))

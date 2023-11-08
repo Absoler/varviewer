@@ -692,6 +692,12 @@ class Analysis:
         dwarf_regs = extract_regs_from_z3(dwarf_expr)
         dwarf_regs_names = {reg.decl().name() for reg in dwarf_regs}
 
+        ''' dwarf_expr is the value of the variable recorded in the debug info entry
+            dwarf_addr is its address
+
+            for die whose type is IMPLICIT, we can strip the `DW_OP_stack_value` away,
+            and take the rest as its address, here we just remove the top `load` z3 function if exists.
+        '''
         dwarf_addr = None
         if ty == DwarfType.VALUE:
             dwarf_addr = get_addr(dwarf_expr)
@@ -759,6 +765,7 @@ class Analysis:
                         vex_exprs.append(vex_expr)
 
 
+                    # overwritten register should also be considered
                     data_size = ir.data.result_size(irsb.tyenv)
                     vex_expr = BitVec(get_base_name_vex(ir.offset), 64)
                     if data_size < 64:
@@ -801,7 +808,7 @@ class Analysis:
                         vex_expr = self.get_z3_expr_from_vex(ir.data.addr, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.src_addr)
-                        setattr(vex_expr, "src_size", -1)
+                        setattr(vex_expr, "src_size", int(ir.data.ty[5:]))
                         vex_exprs.append(vex_expr)
                         hasCandidate = True
 
@@ -813,7 +820,7 @@ class Analysis:
                     continue
                 
                 potential_cnt += len(vex_exprs)
-                
+
                 for vex_expr in vex_exprs:
                     ''' avoid z3 match for register location description
                     '''
@@ -822,23 +829,24 @@ class Analysis:
                         vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
                         dwarf_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in dwarf_regs}
                         if vex_regs_sizeNames == dwarf_regs_sizeNames and not has_load(vex_expr) and not has_offset(vex_expr):
-                            reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i))
                         continue
 
                     # conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
                     conds:list = [loadu_cond, loads_cond]
                     
                     if useOffset and ty == DwarfType.VALUE:
+                        # match `dwarf_expr` first, if fail, try match its address
                         if dwarf_expr != None:
                             offset = getConstOffset(vex_expr, dwarf_expr, conds)
-                            if isinstance(offset, BitVecNumRef) and abs(offset) < 4096:
-                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            if isinstance(offset, BitVecNumRef) and abs(offset.as_signed_long()) < 4096:
+                                reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                                 continue
 
                         if dwarf_addr != None:
                             offset = getConstOffset(vex_expr, dwarf_addr, conds)
-                            if isinstance(offset, BitVecNumRef)and abs(offset) < 4096:
-                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            if isinstance(offset, BitVecNumRef)and abs(offset.as_signed_long()) < 4096:
+                                reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                                 continue
 
                     else:
@@ -847,7 +855,7 @@ class Analysis:
                             slv.add(*conds)
                             slv.add(vex_expr != dwarf_expr)
                             if solver_check_wrapper(slv) == unsat:
-                                reses.append(Result(curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
+                                reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
                                 continue
                         
                         if dwarf_addr != None:
@@ -855,7 +863,7 @@ class Analysis:
                             slv.add(*conds)
                             slv.add(vex_expr != dwarf_addr)
                             if solver_check_wrapper(slv) == unsat:
-                                reses.append(Result(curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
+                                reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
 
 
                 

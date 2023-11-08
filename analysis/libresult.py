@@ -17,6 +17,7 @@ from iced_x86 import *
 '''
 
 ''' all possible match position
+    indicate the `dwarf expression` match what part of instruction operands
 '''
 class MatchPosition(Enum):
     invalid = 0
@@ -87,17 +88,20 @@ def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
         return ""
 
 class Result:
-    def __init__(self, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, variable_type:VariableType, irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
+    def __init__(self, name:str, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, variable_type:VariableType, irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
         self.addr:int = addr
-        self.name:str = ""
+        self.name:str = name
         self.matchPos:MatchPosition = matchPos
-        ''' src and dst operand in x86 mov instruction may have different size
-            if matchPos is `src_value` and we need use dst value to replace src value,
-            we need keep the size of dst value the same as src value
+        ''' src_size is the size of src operand in instruction, we use it to cast dst value
+            to src type, because:
+        
+            src and dst operand in x86 mov instruction may have different size
+            if matchPos is `src_value` and we need use dst value to replace src value
         '''
         self.src_size:int = src_size
-        ''' -1, 0
-            match to &v, v
+        ''' specify the match part of binary operand is `v` or `&v`
+            if -1, means match `&v`, and can't occur when matchPos is `src_addr` or `dst_addr`,
+            because it's equal to indirect == 0 and matchPos is `src_value` or `dst_value`
         '''
         self.indirect:int = indirect
         self.dwarfType:DwarfType = dwarfType
@@ -111,6 +115,13 @@ class Result:
             so record all, join with '@'
         '''
         self.uncertain:bool = False
+
+        ''' if addrExp matches address of a memory operand and is the address of a variable,
+            then this memory operand matches the value of the variable
+        '''
+        if isAddrPos(matchPos) and indirect == -1:
+            self.indirect = 0
+            self.matchPos = MatchPosition.src_value if matchPos == MatchPosition.src_addr else MatchPosition.dst_value
     
     def keys(self):
         return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'variable_type', 'offset', 'expression', 'uncertain')
@@ -125,11 +136,8 @@ class Result:
         return getattr(self, item)
     
     def __str__(self) -> str:
-        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} variable_type:{self.variable_type.name} pos:{self.matchPos.name} indirect_level:{self.indirect} offset:{self.offset} {self.piece_num}:{self.irsb_addr}:{self.ind}"
+        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} variable_type:{self.variable_type.name} pos:{self.matchPos.name} indirect:{self.indirect} offset:{self.offset} {self.piece_num}:{self.irsb_addr}:{self.ind}"
     
-    def update(self, name:str, piece_num:int):
-        self.name = name
-        self.piece_num = piece_num
 
     def construct_expression(self, insn:Instruction) -> bool:
         if insn.op_count < 1:
@@ -193,6 +201,10 @@ class Result:
             else:
                 ''' for src_value, we record the just like dst_value,
                     because we don't know whether src is mixed with dst
+
+                    in x86 instructions, src and dst operands may have different size,
+                    so when testing, we need cast dst value to src value, so now
+                    we use `src_size` to construct the expression string
                 '''
                 value:str = get_value_str_of_operand(insn, dst_ind)
                 if not value:

@@ -50,7 +50,7 @@ if __name__ == "__main__":
         print("text.data() failed", file=sys.stderr)
 
     decoder = Decoder(64, code, ip=code_addr)
-    all_insts:Instruction = []
+    all_insts:list[Instruction] = []
     for ins in decoder:
         all_insts.append(ins)
 
@@ -167,7 +167,7 @@ if __name__ == "__main__":
             matchCount += 1
         for res in reses:
             try:
-                res.update(addrExp.name, piece_num)
+                res.piece_num = piece_num
                 success = res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
                 if success:
                     all_reses.append(res)
