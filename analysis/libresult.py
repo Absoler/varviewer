@@ -222,3 +222,12 @@ class Result:
         elif self.offset < 0:
             self.expression = '(' + self.expression + str(self.offset) + ')'
             
+
+def check_result(offset:BitVecNumRef, matchPos:MatchPosition, ty:DwarfType) -> bool:
+    if not isinstance(offset, BitVecNumRef) or offset.as_signed_long() < 0 or offset.as_signed_long() > 4096:
+        return False
+    
+    if  ( ty == DwarfType.VALUE or ty == DwarfType.REGISTER ) and not isAddrPos(matchPos):
+        return offset.as_signed_long() == 0
+    
+    return True

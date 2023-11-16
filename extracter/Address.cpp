@@ -55,10 +55,12 @@ void Address::output(){
 
 void Address::update_valid(){
     valid = true;
-    for(AddressExp &addr: addrs){
-        if(!addr.valid){
-            valid = false;
-            break;
+    for (vector<AddressExp>::iterator it = addrs.begin(); it != addrs.end(); ) {
+        if (it->valid) {
+            it ++;
+        } else {
+            it = addrs.erase(it);
         }
     }
+    valid = (addrs.size() != 0);
 }

@@ -15,7 +15,7 @@ import time
 import timeout_decorator
 
 
-@timeout_decorator.timeout(0.1)
+@timeout_decorator.timeout(1)
 def solver_check(slv:Solver):
     return slv.check()
 
@@ -26,7 +26,7 @@ def solver_check_wrapper(slv:Solver):
         return unsat
     return res
 
-def getConstOffset(exp1:BitVecRef, exp2:BitVecRef, conds:list):
+def compare_exps(exp1:BitVecRef, exp2:BitVecRef, conds:list, useOffset:bool = False):
     ''' return constant offset of two `BitVecRef` if can else `None` 
     '''
     assert(exp1.size()==exp2.size())
@@ -34,6 +34,8 @@ def getConstOffset(exp1:BitVecRef, exp2:BitVecRef, conds:list):
     for cond in conds:
         slv.add(cond)
     off = BitVec("off", exp1.size())
+    if not useOffset:
+        slv.add(off==0)
     slv.add(exp1-exp2==off)
     if solver_check_wrapper(slv) == sat:
         m = slv.model()
@@ -835,36 +837,19 @@ class Analysis:
                     # conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
                     conds:list = [loadu_cond, loads_cond]
                     
-                    if useOffset and ty == DwarfType.VALUE:
-                        # match `dwarf_expr` first, if fail, try match its address
-                        if dwarf_expr != None:
-                            offset = getConstOffset(vex_expr, dwarf_expr, conds)
-                            if isinstance(offset, BitVecNumRef) and abs(offset.as_signed_long()) < 4096:
-                                reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
-                                continue
+                    
+                    # match `dwarf_expr` first, if fail, try match its address
+                    if dwarf_expr != None:
+                        offset = compare_exps(vex_expr, dwarf_expr, conds, useOffset)
+                        if check_result(offset, vex_expr.matchPos, ty):
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            continue
 
-                        if dwarf_addr != None:
-                            offset = getConstOffset(vex_expr, dwarf_addr, conds)
-                            if isinstance(offset, BitVecNumRef)and abs(offset.as_signed_long()) < 4096:
-                                reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
-                                continue
-
-                    else:
-                        if dwarf_expr != None:
-                            slv.reset()
-                            slv.add(*conds)
-                            slv.add(vex_expr != dwarf_expr)
-                            if solver_check_wrapper(slv) == unsat:
-                                reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
-                                continue
-                        
-                        if dwarf_addr != None:
-                            slv.reset()
-                            slv.add(*conds)
-                            slv.add(vex_expr != dwarf_addr)
-                            if solver_check_wrapper(slv) == unsat:
-                                reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, src_size=vex_expr.src_size))
-
+                    if dwarf_addr != None:
+                        offset = compare_exps(vex_expr, dwarf_addr, conds, useOffset)
+                        if check_result(offset, vex_expr.matchPos, ty):
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            continue
 
                 
 

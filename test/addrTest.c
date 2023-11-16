@@ -15,16 +15,16 @@ struct Big{
 int a, b;
 int arr[100];
 
-int inner(struct S *s, int *p){
+int inner(struct S *sin, int *p){
     *p = g2 + 1;
-    if(s->f1){
+    if(sin->f1){
         g1 = 1;
         g2 = 2;
     }else{
         g1 = 3;
         g2 = 4;
     }
-    int res = *p + s->f2;
+    int res = *p + sin->f2;
     return res + g2;
 }
 
@@ -53,7 +53,7 @@ int main(){
     };
     struct T t = (struct T){const_1,1,1};
     t.f1 = g1;
-    g2 = t.f1 + s2->f1;
+    g2 = t.f1 + s1.f2;
 
     big = (struct Big*)malloc(sizeof(struct Big));
     big->ps2 = (struct S*)malloc(sizeof(struct S));
