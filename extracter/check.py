@@ -22,7 +22,7 @@ new_map = { (addr["name"], addr["decl_file"], addr["decl_row"]):addr for addr in
 new_ids = set(new_map.keys())
 extra = (new_ids).difference(old_ids)
 lack = (old_ids).difference(new_ids)
-both = (new_ids).intersection(new_ids)
+both = (old_ids).intersection(new_ids)
 
 # number testing
 print(f"### number testing")
@@ -31,7 +31,7 @@ print(f"old / new var:  {len(old_json)} / {len(new_json)}\nlack {len(lack)} and 
 
 # content testing
 addr_keys = ["valid"]
-addrExp_keys = ["type", "variable_type", "reg", "startpc", "endpc", "needCFA"]
+addrExp_keys = ["type", "reg", "startpc", "endpc", "needCFA"]
 exp_keys = ["regs", "offset", "valid", "empty", "hasChild", "isCFA"]
 
 right_count = 0

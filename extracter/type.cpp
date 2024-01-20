@@ -21,6 +21,7 @@ string basic_type_names[4][2] = {
 Type::Type() {
     valid = true;
     basicType = INVALID_TYPE;
+    has_sign = false;
 }
 
 int
@@ -111,7 +112,10 @@ Type::to_string() {
     if (!valid) {
         return string("invalid type");
     } else {
-        return basic_type_names[log2(size)][static_cast<int>(has_sign)];
+        if (size<4 && size>=0)
+            return basic_type_names[log2(size)][static_cast<int>(has_sign)];
+        else
+            return "";
     }
 }
 
