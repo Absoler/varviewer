@@ -206,7 +206,6 @@ dwarf_iced_regMap = {
 
 }
 
-
 dwarf_reg_names = [
     "rax",
     "rdx",

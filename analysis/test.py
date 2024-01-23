@@ -54,7 +54,7 @@ if __name__ == "__main__":
     analysis:Analysis = Analysis(proj, cfg)
     analysis.analyzeCFG()
 
-    reses = analysis.match(addrExp, DwarfType(addrExp.type), piece_addrs, True, True)
+    reses = analysis.match(addrExp, DwarfType(addrExp.dwarfType), piece_addrs, True, True)
 
     all_reses = []
     for res in reses:

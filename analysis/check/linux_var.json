@@ -1,0 +1,413 @@
+[
+    {
+        "addrExps": [
+            {
+                "empty": false,
+                "endpc": 18446744071585995556,
+                "hasChild": true,
+                "isCFA": false,
+                "needCFA": false,
+                "offset": 0,
+                "op": 35,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 128,
+                "regs": null,
+                "sign": false,
+                "startpc": 18446744071585995526,
+                "sub1": {
+                    "empty": false,
+                    "hasChild": false,
+                    "isCFA": false,
+                    "mem": {
+                        "empty": false,
+                        "hasChild": false,
+                        "isCFA": false,
+                        "offset": 0,
+                        "regs": {
+                            "6": 1
+                        },
+                        "sign": false,
+                        "valid": true
+                    },
+                    "offset": 0,
+                    "regs": null,
+                    "sign": false,
+                    "valid": true
+                },
+                "sub2": {
+                    "empty": false,
+                    "hasChild": false,
+                    "isCFA": false,
+                    "offset": 672,
+                    "regs": null,
+                    "sign": false,
+                    "valid": true
+                },
+                "dwarfType": 0,
+                "valid": true,
+                "detailedDwarfType": 3
+            }
+        ],
+        "decl_col": 12,
+        "decl_file": "/home/linux-6.0-rc6/drivers/gpu/drm/i915/display/intel_sprite.c",
+        "decl_row": 1115,
+        "name": "pipe",
+        "valid": true
+    },
+
+    {
+        "addrExps": [
+            {
+                "empty": false,
+                "endpc": 18446744071581560428,
+                "hasChild": true,
+                "isCFA": false,
+                "needCFA": false,
+                "offset": 0,
+                "op": 34,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 128,
+                "regs": null,
+                "sign": false,
+                "startpc": 18446744071581560409,
+                "sub1": {
+                    "empty": false,
+                    "hasChild": false,
+                    "isCFA": false,
+                    "offset": 0,
+                    "regs": {
+                        "3": 1
+                    },
+                    "sign": false,
+                    "valid": true
+                },
+                "sub2": {
+                    "empty": false,
+                    "hasChild": true,
+                    "isCFA": false,
+                    "offset": 0,
+                    "op": 36,
+                    "regs": null,
+                    "sign": false,
+                    "sub1": {
+                        "empty": false,
+                        "hasChild": false,
+                        "isCFA": false,
+                        "offset": 3,
+                        "regs": null,
+                        "sign": false,
+                        "valid": true
+                    },
+                    "sub2": {
+                        "empty": false,
+                        "hasChild": false,
+                        "isCFA": false,
+                        "offset": 37,
+                        "regs": {
+                            "6": 1
+                        },
+                        "sign": false,
+                        "valid": true
+                    },
+                    "valid": true
+                },
+                "dwarfType": 0,
+                "valid": true,
+                "detailedDwarfType": 3
+            }
+        ],
+        "decl_col": 45,
+        "decl_file": "/home/linux-6.0-rc6/./include/linux/fs.h",
+        "decl_row": 754,
+        "name": "inode",
+        "valid": true
+    },
+
+    
+
+    {
+        "addrExps": [
+            {
+                "cfa_pcs": [
+                    18446744071578902939
+                ],
+                "cfa_values": [
+                    {
+                        "empty": false,
+                        "hasChild": false,
+                        "isCFA": false,
+                        "offset": 80,
+                        "regs": {
+                            "7": 1
+                        },
+                        "sign": true,
+                        "valid": true
+                    }
+                ],
+                "empty": false,
+                "endpc": 18446744071578903758,
+                "hasChild": false,
+                "isCFA": true,
+                "needCFA": true,
+                "offset": 18446744073709551544,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 128,
+                "regs": null,
+                "sign": true,
+                "startpc": 18446744071578903535,
+                "dwarfType": 0,
+                "valid": true,
+                "detailedDwarfType": 1
+            }
+        ],
+        "decl_col": 16,
+        "decl_file": "/home/linux-6.0-rc6/arch/x86/events/intel/core.c",
+        "decl_row": 2818,
+        "name": "flags",
+        "valid": true
+    },
+    {
+        "addrExps": [
+            {
+                "cfa_pcs": [
+                    18446744071586452554
+                ],
+                "cfa_values": [
+                    {
+                        "empty": false,
+                        "hasChild": false,
+                        "isCFA": false,
+                        "offset": 72,
+                        "regs": {
+                            "7": 1
+                        },
+                        "sign": true,
+                        "valid": true
+                    }
+                ],
+                "empty": false,
+                "endpc": 18446744071586452725,
+                "hasChild": false,
+                "isCFA": true,
+                "needCFA": true,
+                "offset": 18446744073709551552,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 128,
+                "regs": null,
+                "sign": true,
+                "startpc": 18446744071586452645,
+                "dwarfType": 0,
+                "valid": true,
+                "detailedDwarfType": 1
+            }
+        ],
+        "decl_col": 7,
+        "decl_file": "/home/linux-6.0-rc6/drivers/base/core.c",
+        "decl_row": 2044,
+        "name": "ret",
+        "valid": true
+    },
+
+
+    {
+        "addrExps": [
+            {
+                "empty": false,
+                "endpc": 18446744071586238040,
+                "hasChild": false,
+                "isCFA": false,
+                "needCFA": false,
+                "offset": 488,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 128,
+                "regs": {
+                    "5": 1
+                },
+                "sign": false,
+                "startpc": 18446744071586237989,
+                "dwarfType": 0,
+                "valid": true,
+                "detailedDwarfType": 2
+            }
+        ],
+        "decl_col": 26,
+        "decl_file": "/home/linux-6.0-rc6/drivers/gpu/drm/i915/display/intel_dsi_vbt.c",
+        "decl_row": 883,
+        "name": "connector",
+        "valid": true
+    },
+    {
+        "addrExps": [
+            {
+                "empty": false,
+                "endpc": 18446744071586471968,
+                "hasChild": false,
+                "isCFA": false,
+                "needCFA": false,
+                "offset": 376,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 128,
+                "regs": {
+                    "5": 1
+                },
+                "sign": false,
+                "startpc": 18446744071586471952,
+                "dwarfType": 0,
+                "valid": true,
+                "detailedDwarfType": 2
+            }
+        ],
+        "decl_col": 16,
+        "decl_file": "/home/linux-6.0-rc6/drivers/base/class.c",
+        "decl_row": 68,
+        "name": "class",
+        "valid": true
+    },
+
+    {
+        "addrExps": [
+            {
+                "empty": false,
+                "endpc": 18446744071591699997,
+                "hasChild": false,
+                "isCFA": false,
+                "needCFA": false,
+                "offset": 0,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 5,
+                "regs": null,
+                "sign": false,
+                "startpc": 18446744071591699987,
+                "dwarfType": 1,
+                "valid": true,
+                "detailedDwarfType": 4
+            }
+        ],
+        "decl_col": 48,
+        "decl_file": "/home/linux-6.0-rc6/init/main.c",
+        "decl_row": 1431,
+        "name": "init_filename",
+        "valid": true
+    },
+
+    {
+        "addrExps": [
+            {
+                "empty": false,
+                "endpc": 18446744071591699911,
+                "hasChild": false,
+                "isCFA": false,
+                "needCFA": false,
+                "offset": 0,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 3,
+                "regs": null,
+                "sign": false,
+                "startpc": 18446744071591699892,
+                "dwarfType": 1,
+                "valid": true,
+                "detailedDwarfType": 5
+            }
+        ],
+        "decl_col": 21,
+        "decl_file": "/home/linux-6.0-rc6/init/main.c",
+        "decl_row": 1418,
+        "name": "p",
+        "valid": true
+    },
+
+
+    {
+        "addrExps": [
+            {
+                "empty": false,
+                "endpc": 18446744071587513195,
+                "hasChild": true,
+                "isCFA": false,
+                "needCFA": false,
+                "offset": 0,
+                "op": 26,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 128,
+                "regs": null,
+                "sign": false,
+                "startpc": 18446744071587513177,
+                "sub1": {
+                    "empty": false,
+                    "hasChild": false,
+                    "isCFA": false,
+                    "offset": 65535,
+                    "regs": null,
+                    "sign": false,
+                    "valid": true
+                },
+                "sub2": {
+                    "empty": false,
+                    "hasChild": false,
+                    "isCFA": false,
+                    "mem": {
+                        "empty": false,
+                        "hasChild": false,
+                        "isCFA": false,
+                        "offset": 0,
+                        "regs": {
+                            "0": 1
+                        },
+                        "sign": false,
+                        "valid": true
+                    },
+                    "mem_size": 16,
+                    "offset": 0,
+                    "regs": null,
+                    "sign": false,
+                    "valid": true
+                },
+                "dwarfType": 2,
+                "valid": true,
+                "detailedDwarfType": 6
+            }
+        ],
+        "decl_col": 11,
+        "decl_file": "/home/linux-6.0-rc6/drivers/usb/core/hub.c",
+        "decl_row": 5104,
+        "name": "old_length",
+        "valid": true
+    },
+    {
+        "addrExps": [
+            {
+                "empty": false,
+                "endpc": 18446744071586496842,
+                "hasChild": false,
+                "isCFA": false,
+                "needCFA": false,
+                "offset": 32,
+                "piece_size": 0,
+                "piece_start": 0,
+                "reg": 128,
+                "regs": {
+                    "1": 1
+                },
+                "sign": false,
+                "startpc": 18446744071586496832,
+                "dwarfType": 2,
+                "valid": true,
+                "detailedDwarfType": 6
+            }
+        ],
+        "decl_col": 24,
+        "decl_file": "/home/linux-6.0-rc6/drivers/base/cacheinfo.c",
+        "decl_row": 535,
+        "name": "mask",
+        "valid": true
+    }
+]

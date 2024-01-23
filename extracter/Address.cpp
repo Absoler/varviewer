@@ -5,13 +5,13 @@
 #include <string>
 using namespace std;
 
-AddressExp::AddressExp(AddrType _type){
-    type = _type;
+AddressExp::AddressExp(DwarfType _type){
+    dwarfType = _type;
 }
 
 void AddressExp::resetData(){
     Expression::reset();
-    type = MEMORY;
+    dwarfType = MEMORY;
     reg = REG_END;
 
     needCFA = false;
@@ -22,10 +22,10 @@ void AddressExp::resetData(){
 
 void AddressExp::output(){
     printf("%llx %llx\n", startpc, endpc);
-    printf("%u\n", type);
-    if(type==MEMORY){
+    printf("%u\n", dwarfType);
+    if(dwarfType==MEMORY){
         Expression::output();
-    }else if(type==REGISTER){
+    }else if(dwarfType==REGISTER){
 
         printf("%s\n", reg_names[reg]);
     }else{
@@ -35,9 +35,9 @@ void AddressExp::output(){
 
 string AddressExp::toString(){
     string res;
-    if(type==MEMORY){
+    if(dwarfType==MEMORY){
         res = "*(" + Expression::toString() + ")";
-    }else if(type == REGISTER){
+    }else if(dwarfType == REGISTER){
         res = string(reg_names[reg]);
     }else{
         res = Expression::toString();

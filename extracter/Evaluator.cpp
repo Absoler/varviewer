@@ -38,7 +38,7 @@ int Evaluator::exec_operation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned
     case DW_OP_deref:
     {
         auto addr = std::make_shared<Expression>();
-        addr->setExpFrom(stk.top());
+        addr->setFromExp(stk.top());
         stk.pop();
         Expression deref;
         deref.mem = addr;
@@ -49,7 +49,7 @@ int Evaluator::exec_operation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned
     case DW_OP_deref_type:
     {
         auto addr = std::make_shared<Expression>();
-        addr->setExpFrom(stk.top());
+        addr->setFromExp(stk.top());
         stk.pop();
         Expression deref;
         deref.mem = addr;
@@ -404,7 +404,7 @@ AddressExp Evaluator::parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_
 
         if((op>=DW_OP_reg0&&op<=DW_OP_reg31) || op==DW_OP_regx){
             // reg addressing
-            addrExp.type = REGISTER;
+            addrExp.dwarfType = REGISTER;
             addrExp.reg = (op==DW_OP_regx? op1 : op-DW_OP_reg0);
             dwarf_dealloc_loc_head_c(loc_head);
             return addrExp;
@@ -423,7 +423,7 @@ AddressExp Evaluator::parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_
     }
 
     assert(!stk.empty());
-    addrExp.setExpFrom(stk.top());
+    addrExp.setFromExp(stk.top());
     dwarf_dealloc_loc_head_c(loc_head);
     return addrExp;
 }
@@ -522,14 +522,14 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
             if((op>=DW_OP_reg0&&op<=DW_OP_reg31) || op==DW_OP_regx){
                 // reg addressing
 
-                addrExp.type = REGISTER;
+                addrExp.dwarfType = REGISTER;
                 addrExp.reg = (op==DW_OP_regx? op1 : op-DW_OP_reg0);
 
                 
             }
             else if(op==DW_OP_implicit_value || op==DW_OP_stack_value){
                 // immediate addressing
-                addrExp.type = VALUE;
+                addrExp.dwarfType = VALUE;
 
                 if(op==DW_OP_implicit_value){
                     if(op1>8){
@@ -542,7 +542,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
                         addrExp.valid = false;
                         fprintf(stderr, "stack empty meeting DW_OP_stack_value");
                     }else
-                        addrExp.setExpFrom(stk.top());
+                        addrExp.setFromExp(stk.top());
 
                 }
                 
@@ -551,14 +551,14 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
                 // deal with piece case
                 if(!last_is_piece){
                     addrExp.piece = std::pair<Dwarf_Unsigned, int>(piece_base, op1);
-                    if(addrExp.type == MEMORY){
+                    if(addrExp.dwarfType == MEMORY){
                         if(stk.empty()){
-                            addrExp.setExpFrom(Expression::createEmpty());
+                            addrExp.setFromExp(Expression::createEmpty());
                         }else{
-                            addrExp.setExpFrom(stk.top());
+                            addrExp.setFromExp(stk.top());
                         }
                     }
-                    addrExp.variable_type = statistics.solveOneExpr();
+                    addrExp.detailedDwarfType = statistics.solveOneExpr();
                     res.addrs.push_back(addrExp);
                     addrExp.resetData();
                 }
@@ -569,11 +569,11 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
                 AddressExp entry_value = tempEvaluator.parse_dwarf_block((Dwarf_Ptr)op2, op1);
                 Expression exp;
                 // there should be no `DW_OP_stack_value` or `DW_OP_implicit_value` in entry_value block
-                assert(entry_value.type != VALUE);
-                if(entry_value.type == REGISTER){
+                assert(entry_value.dwarfType != VALUE);
+                if(entry_value.dwarfType == REGISTER){
                     exp.reg_scale[entry_value.reg] += 1;
                 }else{
-                    exp.setExpFrom(entry_value);
+                    exp.setFromExp(entry_value);
                 }
                 exp.valid = false;
                 stk.push(exp);
@@ -629,7 +629,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
             last_is_piece = (op==DW_OP_piece);            
         }
 
-        if((!last_is_piece) && addrExp.type == MEMORY && addrExp.valid){
+        if((!last_is_piece) && addrExp.dwarfType == MEMORY && addrExp.valid){
             /* if the last op is not `reg addressing` or `imme addressing`
                 or not ended by `DW_OP_piece`, gather the stack top value
                 
@@ -637,14 +637,14 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
                 addrExp
             */
             if(stk.empty()){
-                addrExp.setExpFrom(Expression::createEmpty());
+                addrExp.setFromExp(Expression::createEmpty());
             }else{
-                addrExp.setExpFrom(stk.top());
+                addrExp.setFromExp(stk.top());
             }
         }
 
         if(!last_is_piece){
-            addrExp.variable_type = statistics.solveOneExpr();
+            addrExp.detailedDwarfType = statistics.solveOneExpr();
             res.addrs.push_back(addrExp);
         }
 

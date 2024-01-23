@@ -24,6 +24,6 @@ if len(sys.argv) > 3:
     hint = Hint()
     dwarf_exp = addrExp.get_Z3_expr(hint)
 
-    reses = analysis.match(dwarf_exp, DwarfType(addrExp.type), False)
+    reses = analysis.match(dwarf_exp, DwarfType(addrExp.dwarfType), False)
 
     print(reses)

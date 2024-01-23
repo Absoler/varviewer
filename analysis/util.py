@@ -60,7 +60,7 @@ class DwarfType(Enum):
 
 ''' may substitue `DwarfType`, later
 '''
-class VariableType(Enum):
+class DetailedDwarfType(Enum):
     INVALID = -1
     MEM_GLOABL = 0
     MEM_CFA = 1

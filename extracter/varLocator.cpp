@@ -291,10 +291,12 @@ int print_raw_location(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc
 // pre-order traverse
 void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range range, bool is_info, int indent){
     Dwarf_Error err;
+    Range fa_range(range);
     do{
         const char *tag_name;
         Dwarf_Half tag;
         Dwarf_Die child_die;
+        bool modifyRange = false;
         int res = 0;
         res = dwarf_tag(fa_die, &tag, &err);
         if(res==DW_DLV_OK){
@@ -307,6 +309,7 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
 
             if(tag==DW_TAG_lexical_block || tag==DW_TAG_subprogram){
                 range.setFromDie(fa_die);
+                modifyRange = true;
             }
 
             if (tag==DW_TAG_variable||tag==DW_TAG_formal_parameter){
@@ -361,7 +364,9 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
             walkDieTree(cu_die, dbg, child_die, range, is_info, indent+1);
             dwarf_dealloc_die(child_die);
         }
-        range.clear();
+        if (modifyRange) {
+            range.setFromRange(fa_range);
+        }
     }while(dwarf_siblingof_b(dbg, fa_die, is_info, &fa_die, &err) == DW_DLV_OK);
 }
 

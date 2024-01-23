@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-enum AddrType{
+enum DwarfType{
     MEMORY,
     REGISTER,
     VALUE
@@ -21,7 +21,7 @@ enum AddrType{
 class AddressExp : public Expression{
     public:
     AddressExp() = default;
-    AddressExp(AddrType _type);
+    AddressExp(DwarfType _type);
     
     /*
         in dwarf standard, pieces belong to the same location expression,
@@ -29,8 +29,8 @@ class AddressExp : public Expression{
         piece may have different `type`.
     */
     piece_type piece;
-    AddrType type = MEMORY; // if type == MEMORY or type == CONSTANT, use Expression of the father
-    int variable_type;      // detailed type of variable
+    DwarfType dwarfType = MEMORY; // if type == MEMORY or type == CONSTANT, use Expression of the father
+    int detailedDwarfType;      // detailed type of variable
     Dwarf_Half reg = REG_END; // valid if type == REGISTER
     Dwarf_Addr startpc, endpc;  // endpc not include in range
 
@@ -53,7 +53,7 @@ class Address{
 
     public:
     Address() = default;
-    Address(AddrType _type);
+    Address(DwarfType _type);
 
     bool valid = false;
     std::string name;

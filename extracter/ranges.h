@@ -6,11 +6,13 @@
 
 class Range{
     public:
-
     static Range createEmpty();
     static Range createFromDie(Dwarf_Die die);
+    Range():startpc(0), endpc(0) {}
+    Range(const Range &range);
     void clear();
     void setFromDie(Dwarf_Die);
+    void setFromRange(const Range &range);
     Dwarf_Addr startpc, endpc;
 };
 

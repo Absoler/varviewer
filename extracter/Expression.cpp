@@ -169,9 +169,9 @@ Expression Expression::bin_op(const Expression &exp1, const Expression &exp2, Dw
         res.reset();
         res.hasChild = true;
         res.sub1 = std::make_shared<Expression>();
-        res.sub1->setExpFrom(exp1);
+        res.sub1->setFromExp(exp1);
         res.sub2 = std::make_shared<Expression>();
-        res.sub2->setExpFrom(exp2);
+        res.sub2->setFromExp(exp2);
         res.op = op;
         
         return res;
@@ -266,7 +266,7 @@ Expression Expression::unary_op(const Expression &exp, Dwarf_Small op){
         // expand to a binary tree with `sub2` is NULL
         res.reset();
         res.sub1 = std::make_shared<Expression>();
-        res.sub1->setExpFrom(exp);
+        res.sub1->setFromExp(exp);
         res.op = op;
         return res;
     }
@@ -334,7 +334,7 @@ void Expression::output(){
     printf("\n");
 }
 
-void Expression::setExpFrom(const Expression &exp){
+void Expression::setFromExp(const Expression &exp){
     empty = exp.empty;
     valid = exp.valid;
     memcpy(reg_scale, exp.reg_scale, sizeof(reg_scale));

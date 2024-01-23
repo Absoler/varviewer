@@ -95,7 +95,7 @@ void testFDE(Dwarf_Debug dbg, bool print){
                 case DW_EXPR_EXPRESSION:{
                     Expression expression;
                     AddressExp block_addrExp = evaluator.parse_dwarf_block(block.bl_data, block.bl_len);
-                    expression.setExpFrom(block_addrExp);
+                    expression.setFromExp(block_addrExp);
 
                     cfa_values.push_back(expression);
                     cfa_pcs.push_back(row_pc);
@@ -107,7 +107,7 @@ void testFDE(Dwarf_Debug dbg, bool print){
                     fprintf(stderr, "shouldn't meet val_expression cfa\n");
                     Expression val_expression;
                     AddressExp block_addrExp = evaluator.parse_dwarf_block(block.bl_data, block.bl_len);
-                    val_expression.setExpFrom(block_addrExp);
+                    val_expression.setFromExp(block_addrExp);
 
                     cfa_values.push_back(val_expression);
                     cfa_pcs.push_back(row_pc);

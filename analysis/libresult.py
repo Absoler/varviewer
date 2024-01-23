@@ -88,7 +88,7 @@ def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
         return ""
 
 class Result:
-    def __init__(self, name:str, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, variable_type:VariableType, irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
+    def __init__(self, name:str, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, detailedDwarfType:DetailedDwarfType, irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
         self.addr:int = addr
         self.name:str = name
         self.matchPos:MatchPosition = matchPos
@@ -105,7 +105,7 @@ class Result:
         '''
         self.indirect:int = indirect
         self.dwarfType:DwarfType = dwarfType
-        self.variable_type:VariableType = variable_type
+        self.detailedDwarfType:DetailedDwarfType = detailedDwarfType
         self.offset:int = offset
         self.expression = ""
         self.irsb_addr = irsb_addr
@@ -116,27 +116,21 @@ class Result:
         '''
         self.uncertain:bool = False
 
-        ''' if addrExp matches address of a memory operand and is the address of a variable,
-            then this memory operand matches the value of the variable
-        '''
-        if isAddrPos(matchPos) and indirect == -1:
-            self.indirect = 0
-            self.matchPos = MatchPosition.src_value if matchPos == MatchPosition.src_addr else MatchPosition.dst_value
     
     def keys(self):
-        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'variable_type', 'offset', 'expression', 'uncertain')
+        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'detailedDwarfType', 'offset', 'expression', 'uncertain')
     
     def __getitem__(self, item):
         if item == "matchPos":
             return self.matchPos.value
         elif item == "dwarfType":
             return self.dwarfType.value
-        elif item == 'variable_type':
-            return self.variable_type.value
+        elif item == 'detailedDwarfType':
+            return self.detailedDwarfType.value
         return getattr(self, item)
     
     def __str__(self) -> str:
-        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} variable_type:{self.variable_type.name} pos:{self.matchPos.name} indirect:{self.indirect} offset:{self.offset} {self.piece_num}:{self.irsb_addr}:{self.ind}"
+        return f"0x{self.addr:X} name:{self.name} dwarfType:{self.dwarfType.name} detailedDwarfType:{self.detailedDwarfType.name} pos:{self.matchPos.name} indirect:{self.indirect} offset:{self.offset} {self.piece_num}:{self.irsb_addr}:{self.ind}"
     
 
     def construct_expression(self, insn:Instruction) -> bool:
@@ -160,6 +154,9 @@ class Result:
 
         ''' these instructions have 2 operands and are all read,
             any of the 2 operands can be matched
+
+            In vex doc, `test` or `cmp` operands will be stored in `cc_dep1` and `cc_dep2`
+            through `PUT` ir, so we won't miss them.
         '''
         self.uncertain = code_str.startswith("CMP") or code_str.startswith("TEST")
         if self.uncertain:
@@ -169,7 +166,7 @@ class Result:
                 self.expression = address
             else:
                 value0, value1 = get_value_str_of_operand(insn, 0), get_value_str_of_operand(insn, 1)
-                self.expression = value0 + "@" + value1 +"@"
+                self.expression = value0 + "@" + value1
             self.addOffset()
             return True
                 
@@ -217,17 +214,36 @@ class Result:
         return True
     
     def addOffset(self):
-        if self.offset > 0:
-            self.expression = '(' + self.expression + ' - ' + str(self.offset) + ')'
-        elif self.offset < 0:
-            self.expression = '(' + self.expression + str(self.offset) + ')'
+        expressions = self.expression.split('@')
+        self.expression = ""
+        for i, expression in enumerate(expressions):
+            if self.offset > 0:
+                self.expression += '(' + expression + ' - ' + str(self.offset) + ')'
+            elif self.offset < 0:
+                self.expression += '(' + expression + str(self.offset) + ')'
+            else:
+                self.expression += expression
             
+            if i < len(expressions) - 1:
+                self.expression += "@"
 
-def check_result(offset:BitVecNumRef, matchPos:MatchPosition, ty:DwarfType) -> bool:
+''' check whether the `offset` is valid, 
+
+    `ty` can't replace `indirect`, cuz DwarfType.VALUE can be converted to .MEMORY 
+'''
+def check_offset(offset:BitVecNumRef, indirect:int, isStructOrArray:bool = False, isPointer:bool = False) -> bool:
     if not isinstance(offset, BitVecNumRef) or offset.as_signed_long() < 0 or offset.as_signed_long() > 4096:
         return False
     
-    if  ( ty == DwarfType.VALUE or ty == DwarfType.REGISTER ) and not isAddrPos(matchPos):
+    ''' for a variable whose type is not struct or array, the sum of its address and a constant
+        offset has no meaning
+    '''
+    if indirect == -1 and not isStructOrArray:
         return offset.as_signed_long() == 0
     
+    ''' for a non-pointer variable, the sum of its value and a constant offset has no meaning
+    '''
+    if indirect == 0 and not isPointer:
+        return offset.as_signed_long() == 0
+
     return True

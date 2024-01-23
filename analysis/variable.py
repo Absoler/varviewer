@@ -297,8 +297,8 @@ class AddressExp(Expression):
         {
             Expression part...
 
-            "type" : <int>
-            "variable_type" : <int>
+            "dwarfType" : <int>
+            "detailedDwarfType" : <int>
             "startpc" : <Dwarf_Addr>
             "endpc" : <Dwarf_Addr>
             "reg" : <Dwarf_Half>
@@ -318,7 +318,7 @@ class AddressExp(Expression):
         if jsonAddrExp:
             
             self.reg:int = jsonAddrExp["reg"]
-            self.type:int = jsonAddrExp["type"]
+            self.dwarfType:int = jsonAddrExp["dwarfType"]
 
             self.startpc:int = jsonAddrExp["startpc"]
             self.endpc:int = jsonAddrExp["endpc"]
@@ -328,11 +328,11 @@ class AddressExp(Expression):
             self.needCFA = jsonAddrExp["needCFA"]
             self.cfa_pcs:list[int] = jsonAddrExp["cfa_pcs"] if self.needCFA else []
             self.cfa_values:list[AddressExp] = jsonAddrExp["cfa_values"] if self.needCFA else []
-            self.variable_type:VariableType = VariableType(jsonAddrExp["variable_type"])
+            self.detailedDwarfType:DetailedDwarfType = DetailedDwarfType(jsonAddrExp["detailedDwarfType"])
 
         else:
             self.reg = 128
-            self.type = -1
+            self.dwarfType = -1
 
             self.startpc = 0
             self.endpc = 0
@@ -342,7 +342,7 @@ class AddressExp(Expression):
             self.needCFA = False
             self.cfa_pcs:list[int] = []
             self.cfa_values:list[AddressExp] = []
-            self.variable_type = VariableType.INVALID
+            self.detailedDwarfType = DetailedDwarfType.INVALID
 
 
         self.name:str = ""
@@ -350,9 +350,9 @@ class AddressExp(Expression):
         self.decl_row:int = 0
         
     def keys(self):
-        return (*super().keys(), "reg", "type", "startpc", "endpc", 
+        return (*super().keys(), "reg", "dwarfType", "startpc", "endpc", 
                 "piece_start", "piece_size", "needCFA", "cfa_pcs", "cfa_values",
-                "variable_type", "name", "decl_file", "decl_row")
+                "detailedDwarfType", "name", "decl_file", "decl_row")
 
     def __getitem__(self, item):
         if item == "sub1" and self.sub1:
@@ -361,8 +361,8 @@ class AddressExp(Expression):
             return dict(self.sub2)
         elif item == "mem" and self.mem:
             return dict(self.mem)
-        elif item == "variable_type":
-            return self.variable_type.value
+        elif item == "detailedDwarfType":
+            return self.detailedDwarfType.value
         else:
             return getattr(self, item)
 
@@ -395,7 +395,7 @@ class AddressExp(Expression):
 
 
     def get_Z3_expr(self, hint: Hint) -> BitVecRef:
-        if self.type == DwarfType.REGISTER.value:
+        if self.dwarfType == DwarfType.REGISTER.value:
             return BitVec(dwarf_reg_names[self.reg], 64)
         return super().get_Z3_expr(hint)
 
@@ -405,7 +405,7 @@ def cmp_addrExp(x:AddressExp, y:AddressExp) -> int:
         return x.startpc - y.startpc
     elif x.endpc != y.endpc:
         return x.endpc - y.endpc
-    elif x.variable_type == VariableType.MEM_GLOABL and y.variable_type != VariableType.MEM_GLOABL:
+    elif x.detailedDwarfType == DetailedDwarfType.MEM_GLOABL and y.detailedDwarfType != DetailedDwarfType.MEM_GLOABL:
         return -1
     
     else:
@@ -461,7 +461,7 @@ class VarMgr:
         self.globals = []
         for i in range(0, len(self.vars)):
             if self.vars[i].startpc == 0 and self.vars[i].endpc == 0:
-                if self.vars[i].variable_type == VariableType.MEM_GLOABL:
+                if self.vars[i].detailedDwarfType == DetailedDwarfType.MEM_GLOABL:
                     self.globals.append(self.vars[i])
                     self.global_ind = i
 
@@ -656,8 +656,8 @@ if __name__ == "__main__":
             startInd, endInd = findId_r(addrExp.startpc, insts), findId_l(addrExp.endpc, insts)
             
             # reg relative to this var's loc expr
-            rel_regs = [addrExp.reg] if addrExp.type == 1 else []
-            if addrExp.type==DwarfType.MEMORY.value and addrExp.regs:
+            rel_regs = [addrExp.reg] if addrExp.dwarfType == 1 else []
+            if addrExp.dwarfType==DwarfType.MEMORY.value and addrExp.regs:
                 assert(len(list(addrExp.regs.keys()))<=2)
                 rel_regs.extend(list(addrExp.regs.keys()))
 
@@ -699,7 +699,7 @@ if __name__ == "__main__":
                     inmap[inCnt]=0
                 inmap[inCnt] += 1
                 if inCnt == 100:
-                    print(f"{addrExp.startpc} {addrExp.endpc} {addrExp.type}")
+                    print(f"{addrExp.startpc} {addrExp.endpc} {addrExp.dwarfType}")
         
         print(f"jump out of range {jumpOutCnt} / {allcount}")
         print(f"jump inside the range {jumpInCnt} / {allcount}")

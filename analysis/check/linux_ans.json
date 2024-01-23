@@ -1,0 +1,104 @@
+{
+    "pipe" : {
+        "addr" : 18446744071585995546,
+        "name" : "pipe",
+        "matchPos" : 1,
+        "indirect" : 0,
+        "dwarfType" : 0,
+        "detailedDwarfType" : 1,
+        "offset" : 0
+    },
+
+    "inode" :  {
+        "addr": 18446744071581560409,
+        "name": "inode",
+        "matchPos": 2,
+        "indirect": -1,
+        "dwarfType": 0,
+        "detailedDwarfType": 3,
+        "offset": 0
+    },
+
+
+    "flags" : {
+        "addr": 18446744071578903663,
+        "name": "flags",
+        "matchPos": 2,
+        "indirect": -1,
+        "dwarfType": 0,
+        "detailedDwarfType": 1,
+        "offset": 0
+    },
+    "ret" : {
+        "addr": 18446744071586452646,
+        "name": "ret",
+        "matchPos": 2,
+        "indirect": -1,
+        "dwarfType": 0,
+        "detailedDwarfType": 1,
+        "offset": 0
+    },
+
+
+    "connector" : {
+        "addr": 18446744071586238002,
+        "name": "connector",
+        "matchPos": 2,
+        "indirect": -1,
+        "dwarfType": 0,
+        "detailedDwarfType": 2,
+        "offset": 0
+    },
+    "class" : {
+        "addr": 18446744071586471952,
+        "name": "class",
+        "matchPos": 2,
+        "indirect": -1,
+        "dwarfType": 0,
+        "detailedDwarfType": 2,
+        "offset": 0,
+        "expression": "",
+        "uncertain": false
+    },
+
+
+    "init_filename" : {
+        "addr": 18446744071591699990,
+        "name": "init_filename",
+        "matchPos": 1,
+        "indirect": 0,
+        "dwarfType": 1,
+        "detailedDwarfType": 4,
+        "offset": 0
+    },
+    "p" : {
+        "addr": 18446744071591699892,
+        "name": "p",
+        "matchPos": 2,
+        "indirect": 0,
+        "dwarfType": 1,
+        "detailedDwarfType": 5,
+        "offset": 0
+    },
+
+
+    "old_length" : {
+        "addr": 18446744071587513177,
+        "name": "old_length",
+        "matchPos": 1,
+        "indirect": 0,
+        "dwarfType": 2,
+        "detailedDwarfType": 6,
+        "offset": 0
+    },
+    "mask" : {
+        "addr": 18446744071586496832,
+        "name": "mask",
+        "matchPos": 2,
+        "indirect": 0,
+        "dwarfType": 2,
+        "detailedDwarfType": 6,
+        "offset": 0
+    }
+
+}

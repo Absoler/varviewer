@@ -19,7 +19,7 @@ import json
 #   2 implicit
 # ----------------------------------------
 
-care_keys = ["addr", "name", "matchPos", "indirect", "dwarfType", "variable_type", "offset"]
+care_keys = ["addr", "name", "matchPos", "indirect", "dwarfType", "detailedDwarfType", "offset"]
 
 if __name__ == "__main__":
     binpath = sys.argv[1]   # set path of built `vmlinux`
@@ -51,9 +51,9 @@ if __name__ == "__main__":
     os.mkdir(temppath)
 
     # init test result
-    testres = { i.value : [0, 0] for i in VariableType}
+    testres = { i.value : [0, 0] for i in DetailedDwarfType}
     for var in mgr.vars:
-        testres[var.variable_type.value][1] += 1
+        testres[var.detailedDwarfType.value][1] += 1
     
     for piece_num in range(len(mgr.vars)):
         piece_name:str = temppath + "/piece_" + str(piece_num)
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         analysis = Analysis(proj, cfg)
         analysis.analyzeCFG()
 
-        reses = analysis.match(addrexp, DwarfType(addrexp.type), piece_addrs, True, False)
+        reses = analysis.match(addrexp, DwarfType(addrexp.dwarfType), piece_addrs, True, False)
         piece_file.close()
 
 
@@ -95,10 +95,10 @@ if __name__ == "__main__":
                     break
                     
             if success:
-                testres[res.variable_type.value][0] += 1
+                testres[res.detailedDwarfType.value][0] += 1
     
     print(f"test result:")
-    for t in VariableType:
+    for t in DetailedDwarfType:
         print(f"{t}:    {testres[t.value][0]}/{testres[t.value][1]}")
 
         

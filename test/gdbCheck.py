@@ -1,8 +1,8 @@
 import gdb
 import json
-import sys
+import sys, os
 sys.path.append(".")
-from util import VariableType
+from util import DetailedDwarfType
 
 # Sample JSON data (replace this with your actual JSON data)
 
@@ -20,6 +20,15 @@ class CheckVariablesCommand(gdb.Command):
 
 
     def load(self, json_path:str):
+        # used to calculate the load offset
+        ref_func = "main"
+        exe_path = gdb.current_progspace().filename
+        ref_static_addr = int(os.popen("readelf -s {} | grep {} | awk '{{print $2}}'".format(exe_path, ref_func)).read().strip(), base=16)
+        gdb.execute("start")
+        ref_runtime_addr = int(gdb.parse_and_eval("&" + ref_func))
+        load_offset = ref_runtime_addr - ref_static_addr
+        print("offset {:X}".format(load_offset))
+
         json_file = open(json_path, "r")
         json_list:list[dict] = json.load(json_file)
         json_file.close()
@@ -31,7 +40,7 @@ class CheckVariablesCommand(gdb.Command):
         for var in json_list:
             if var["expression"] == "":
                 continue
-            addr:int = var["addr"]
+            addr:int = var["addr"] + load_offset
             if addr not in self.json_map:
                 self.json_map[addr] = []
             self.json_map[addr].append(var)
@@ -48,6 +57,7 @@ class CheckVariablesCommand(gdb.Command):
         ''' args[0]: match information json file path
             args[1]: output testing result file path
         '''
+        global exit
         args = gdb.string_to_argv(args)
         self.load(args[0])
         self.output_file = open(args[1], "w")
@@ -60,7 +70,7 @@ class CheckVariablesCommand(gdb.Command):
         outputJson = {}
         breakpointNum = 1
         breakpointMap = {}
-        for t in VariableType:
+        for t in DetailedDwarfType:
             outputJson[t.name] = [0, 0]
 
         outputContent:str = ""
@@ -68,10 +78,7 @@ class CheckVariablesCommand(gdb.Command):
         def get_pc():
             return int(gdb.parse_and_eval("$pc"))
 
-        def get_var_addr_by_name(name:str):
-            return int(gdb.parse_and_eval(f"&{name}"))
-        
-        def get_var_value_by_name(name:str):
+        def get_value_by_name(name:str):
             return int(gdb.parse_and_eval(name))
         
         def get_type_str(var:dict):
@@ -102,7 +109,7 @@ class CheckVariablesCommand(gdb.Command):
             print(f"{addr} : {breakpointNum}")
             breakpointNum += 1
 
-        gdb.execute("r")
+        gdb.execute("c")
 
         # record last variable and oracle if its `matchPos` is `src_value`
         snapshot = []
@@ -111,26 +118,23 @@ class CheckVariablesCommand(gdb.Command):
             if len(snapshot) > 0:
                 gdb.execute("si")
                 for var, oracle, type_str in snapshot:
-                    print(var["expression"])
-                    # our:int = int(gdb.parse_and_eval(var["expression"]))
                     ours:set[int] = get_candidate_values(var, type_str)
-                    variable_type:VariableType = VariableType(var["variable_type"])
-                    outputJson[variable_type.name][1] += 1
+                    detailedDwarfType:DetailedDwarfType = DetailedDwarfType(var["detailedDwarfType"])
+                    outputJson[detailedDwarfType.name][1] += 1
                     if oracle in ours:
-                        outputJson[variable_type.name][0] += 1
+                        outputJson[detailedDwarfType.name][0] += 1
                         correct_cnt += 1
-                        print(f"\n### correct at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}")
+                        print(f"### correct at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}\n")
                     else:
                         wrong_cnt += 1
                         outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}\n"
-                        print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}")
+                        print(f"### wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}\n")
 
             pc = get_pc()
             
             if not (len(snapshot) > 0 and pc in self.addrs):
                 gdb.execute("c")
             
-            global exit
             if exit:
                 print("use exit")
                 break
@@ -144,13 +148,13 @@ class CheckVariablesCommand(gdb.Command):
             if len(self.json_map[addr]) == 0:
                 print(f"{addr:X} has no vars")
             for var in self.json_map[addr]:
-                name:str = var["name"]
+                name:str = var["name"] if var["indirect"] == 0 else "&" + var["name"]
                 matchPos:int = var["matchPos"]
                 expression:str = var["expression"]
                 print(f"matching {name} {expression} ...")
 
                 try:
-                    oracle:int = get_var_value_by_name(name) if var["indirect"] == 0 else get_var_addr_by_name(name)
+                    oracle:int = get_value_by_name(name)
                 except Exception:
                     fail_oracle_cnt += 1
                     print(f"\n### fail get oracle of {name} at 0x{var['addr']:X}")
@@ -162,19 +166,18 @@ class CheckVariablesCommand(gdb.Command):
                     snapshot.append((var, oracle, type_str))
 
                 else:
-                    print('parse_and_eval(expression)')
                     # our:int = int(gdb.parse_and_eval(expression))
                     ours:set[int] = get_candidate_values(var, type_str)
-                    variable_type:VariableType = VariableType(var["variable_type"])
-                    outputJson[variable_type.name][1] += 1
+                    detailedDwarfType:DetailedDwarfType = DetailedDwarfType(var["detailedDwarfType"])
+                    outputJson[detailedDwarfType.name][1] += 1
                     if oracle in ours:
-                        outputJson[variable_type.name][0] += 1
+                        outputJson[detailedDwarfType.name][0] += 1
                         correct_cnt += 1
-                        print(f"\n### correct at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}")
+                        print(f"### correct at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}\n")
                     else:
                         wrong_cnt += 1
                         outputContent += f"    wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}\n"
-                        print(f"\n### wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}")
+                        print(f"### wrong at {var['addr']:X} of {var['name']} our:{ours} oracle:{oracle}\n")
 
             # if hit_cnt > len(self.addrs):
             #     ''' in case the last one is `src_value`, need delayed processing

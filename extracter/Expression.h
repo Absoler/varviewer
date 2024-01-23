@@ -61,6 +61,6 @@ class Expression{
     
     void reset();   // clear data
     void output();
-    void setExpFrom(const Expression &);    // deep copy from another expression
+    void setFromExp(const Expression &);    // deep copy from another expression
     std::string toString();
 };

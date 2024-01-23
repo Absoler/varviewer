@@ -76,6 +76,11 @@ int parse_simple_ranges(Dwarf_Die die, Dwarf_Addr *startpc, Dwarf_Addr *endpc){
     return res;
 }
 
+Range::Range(const Range &range){
+    startpc = range.startpc;
+    endpc = range.endpc;
+}
+
 Range
 Range::createEmpty(){
     Range res;
@@ -105,4 +110,10 @@ void Range::setFromDie(Dwarf_Die die){
         startpc = 0;
         endpc = 0;
     }
+}
+
+void
+Range::setFromRange(const Range &range) {
+    startpc = range.startpc;
+    endpc = range.endpc;
 }

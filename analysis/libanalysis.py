@@ -690,7 +690,7 @@ class Analysis:
         potential_cnt = 0
 
         dwarf_expr:BitVecRef = addrExp.get_Z3_expr(Hint())
-        variable_type:VariableType = addrExp.variable_type
+        detailedDwarfType:DetailedDwarfType = addrExp.detailedDwarfType
         dwarf_regs = extract_regs_from_z3(dwarf_expr)
         dwarf_regs_names = {reg.decl().name() for reg in dwarf_regs}
 
@@ -831,7 +831,7 @@ class Analysis:
                         vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
                         dwarf_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in dwarf_regs}
                         if vex_regs_sizeNames == dwarf_regs_sizeNames and not has_load(vex_expr) and not has_offset(vex_expr):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType, irsb.addr, i))
                         continue
 
                     # conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
@@ -841,14 +841,14 @@ class Analysis:
                     # match `dwarf_expr` first, if fail, try match its address
                     if dwarf_expr != None:
                         offset = compare_exps(vex_expr, dwarf_expr, conds, useOffset)
-                        if check_result(offset, vex_expr.matchPos, ty):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                        if check_offset(offset, 0):
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                     if dwarf_addr != None:
                         offset = compare_exps(vex_expr, dwarf_addr, conds, useOffset)
-                        if check_result(offset, vex_expr.matchPos, ty):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, variable_type, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                        if check_offset(offset, -1):
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, detailedDwarfType, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                 

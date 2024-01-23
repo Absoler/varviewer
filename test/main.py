@@ -2,7 +2,7 @@
 
 import sys, os, re
 import json
-from util import VariableType
+from util import DetailedDwarfType
 
 # usually `./random`
 testPath = sys.argv[1]
@@ -15,7 +15,7 @@ gdbScriptContent = ""
 gdbTempScriptPath = "gdb.x"
 resultRe = re.compile(r'correct (?P<correct>\d+) / (?P<all>\d+)')
 sumCorrect, sumAll = 0, 0
-resultJson = { key.name : [0, 0] for key in VariableType}
+resultJson = { key.name : [0, 0] for key in DetailedDwarfType}
 
 
 for i in range(startInd, testCount):
@@ -33,11 +33,11 @@ quit
 y'''
     with open(gdbTempScriptPath, "w") as gdbTempScript:
         gdbTempScript.write(gdbScriptContent)
-    os.system(f"gdb {testFileName} -x {gdbTempScriptPath}")
+    os.system(f"gdb {testFileName} -x {gdbTempScriptPath} -q")
 
     with open(f"{testFileName}.count", "r") as countFile:
         countJson = json.load(countFile)
-        for key in VariableType:
+        for key in DetailedDwarfType:
             resultJson[key.name][0] += countJson[key.name][0]
             resultJson[key.name][1] += countJson[key.name][1]
 

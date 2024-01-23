@@ -70,7 +70,7 @@ json createJsonforAddressExp(const AddressExp &addrexp){
             Expression part ...
 
             "type" : <int>
-            "variable_type" : <bool>
+            "detailedDwarfType" : <bool>
             "startpc" : <Dwarf_Addr>
             "endpc" : <Dwarf_Addr>
             "reg" : <Dwarf_Half>
@@ -87,8 +87,8 @@ json createJsonforAddressExp(const AddressExp &addrexp){
         }
     */
     json res = createJsonforExpression(addrexp);
-    res["type"] = addrexp.type;
-    res["variable_type"] = addrexp.variable_type;
+    res["dwarfType"] = addrexp.dwarfType;
+    res["detailedDwarfType"] = addrexp.detailedDwarfType;
     res["startpc"] = addrexp.startpc;
     res["endpc"] = addrexp.endpc;
     res["reg"] = addrexp.reg;

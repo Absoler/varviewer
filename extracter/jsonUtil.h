@@ -27,8 +27,8 @@ json createJsonforAddress(const Address& addr);
     {
         Expression part ...
 
-        "type" : <int>
-        "variable_type" : <int>
+        "dwarfType" : <int>
+        "detailedDwarfType" : <int>
         "startpc" : <Dwarf_Addr>
         "endpc" : <Dwarf_Addr>
         "reg" : <Dwarf_Half>

@@ -155,7 +155,7 @@ if __name__ == "__main__":
         ''' try match
         '''
         try:
-            reses = analysis.match(addrExp, DwarfType(addrExp.type), piece_addrs, args.useOffset, showTime)
+            reses = analysis.match(addrExp, DwarfType(addrExp.dwarfType), piece_addrs, args.useOffset, showTime)
         except Exception as e:
             print(f"exception {e} in matching")
 
