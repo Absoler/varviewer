@@ -16,4 +16,5 @@ class Range{
     Dwarf_Addr startpc, endpc;
 };
 
+extern const Range dummyrange;
 int parse_simple_ranges(Dwarf_Die die, Dwarf_Addr *startpc, Dwarf_Addr *endpc);

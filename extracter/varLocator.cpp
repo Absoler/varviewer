@@ -29,7 +29,6 @@ bool printFDE = false;
 bool noTraverse = false;
 
 // important variables
-json allJson = json::array();
 bool isFirstJson = true;
 
 // statistic variables
@@ -66,11 +65,9 @@ int test_evaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range r
 
     Dwarf_Half tag;
     dwarf_tag(var_die, &tag, &err);
-    // addr.is_variable = (tag == DW_TAG_variable);
 
     if(useJson){
         json addrJson = createJsonforAddress(addr);
-        // allJson.push_back(std::move(addrJson));
         string jsonStr = addrJson.dump(4);
         addrJson.clear();
         if (likely(!isFirstJson)) {
@@ -248,7 +245,7 @@ int print_raw_location(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc
            
             if(op==DW_OP_entry_value||op==DW_OP_GNU_entry_value){
                 tempEvaluator.dbg = dbg;
-                tempEvaluator.parse_dwarf_block((Dwarf_Ptr)op2, op1, true);
+                tempEvaluator.parse_dwarf_block((Dwarf_Ptr)op2, op1, dummyrange, true);
             }
             if(op==DW_OP_fbreg){
                 hasCFA = true;
@@ -311,6 +308,7 @@ void walkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
                 range.setFromDie(fa_die);
                 modifyRange = true;
             }
+            updateFrameBase(fa_die, range);
 
             if (tag==DW_TAG_variable||tag==DW_TAG_formal_parameter){
                 Dwarf_Bool hasLoc = false;
@@ -414,6 +412,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     testFDE(dbg, printFDE);
+    printf("--- parsing frame info done ---\n");
 
     if (useJson) {
         jsonOut << "[\n";
@@ -455,18 +454,6 @@ int main(int argc, char *argv[]) {
         jsonOut << "\n]";
     }
     jsonOut.close();
-    // output json result
-    // if(useJson){
-    //     string jsonStr = allJson.dump(4);
-    //     if (jsonFileStr!="") {
-    //         fstream out(jsonFileStr.c_str(), ios::out);
-    //         out << jsonStr << endl;
-    //         out.close();
-    //     }else{
-    //         cout << jsonStr << endl;
-    //     }
-        
-    // }
 
     // output statistics
     cout<<"---------------- statistics ----------------"<<endl;

@@ -8,6 +8,7 @@
     address or range of machine code addresses, which includes compilation units,
     module initialization, subroutines, lexical blocks, try/catch blocks
 */
+const Range dummyrange = Range::createEmpty();
 
 int parse_simple_ranges(Dwarf_Die die, Dwarf_Addr *startpc, Dwarf_Addr *endpc){
     /*

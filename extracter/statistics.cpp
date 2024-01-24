@@ -41,9 +41,9 @@ Statistics::addVar(Dwarf_Half tag){
     isParam = (tag == DW_TAG_formal_parameter);
 }
 
-VariableType
+DetailedDwarfType
 Statistics::solveOneExpr(){
-    VariableType res = VariableType::INVALID;
+    DetailedDwarfType res = DetailedDwarfType::INVALID;
     if (ops.size() == 0){
         return res;
     }
@@ -70,29 +70,29 @@ Statistics::solveOneExpr(){
 
     if (dwarfType == 0) {
         memoryCnt += 1;
-        res = VariableType::MEM_SINGLE;
+        res = DetailedDwarfType::MEM_SINGLE;
         if (ops.size() > 1U){
             memoryMultiCnt += 1;
-            res = VariableType::MEM_MULTI;
+            res = DetailedDwarfType::MEM_MULTI;
         }else if (ops[0] == DW_OP_addr){
             globalCnt += 1;
-            res = VariableType::MEM_GLOABL;
+            res = DetailedDwarfType::MEM_GLOABL;
         }
         if (hasCFA){
             cfaCnt += 1;
-            res = VariableType::MEM_CFA;
+            res = DetailedDwarfType::MEM_CFA;
         }
 
     }else if (dwarfType == 1) {
         paramRegCnt += (isParam ? 1:0);
         registerCnt += 1;
-        res = (isParam ? VariableType::REG_PARAM : VariableType::REG_OTHER);
+        res = (isParam ? DetailedDwarfType::REG_PARAM : DetailedDwarfType::REG_OTHER);
     }else {
         implicitCnt += 1;
         if (ops.size() > 2U){
             implicitMultiCnt += 1;
         }
-        res = VariableType::IMPLICIT;
+        res = DetailedDwarfType::IMPLICIT;
 
     }
 

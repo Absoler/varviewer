@@ -19,14 +19,15 @@ Evaluator tempEvaluator;
     break;
 
 ArgLocation::ArgLocation(const Range& range, Dwarf_Half loc_form) {
-    argcomp.range = range;
-    argcomp.loc_form = loc_form;
-    argType = 0;
+    argvar.range = range;
+    argvar.loc_form = loc_form;
+    argType = ArgVarType;
 }
 
-ArgLocation::ArgLocation(bool print) {
+ArgLocation::ArgLocation(const Range &range, bool print) {
+    argblk.range = range;
     argblk.print = print;
-    argType = 1;
+    argType = ArgBlockType;
 }
 
 int Evaluator::init_stack(){
@@ -337,7 +338,7 @@ int Evaluator::exec_operation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned
     return ret;
 }
 
-AddressExp Evaluator::parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_length, bool print){
+AddressExp Evaluator::parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_length, const Range &range, bool print){
     int ret;
     Dwarf_Error err;
     
@@ -360,7 +361,7 @@ AddressExp Evaluator::parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_
 
     // extract from loclist
     // there's only one expression in DW_OP_entry_value's block
-    ArgLocation arg(print);
+    ArgLocation arg(range, print);
     addr = parse_loclist(loclist_head, locentry_count, arg);
     return addr.addrs[0];
 }
@@ -436,10 +437,10 @@ Evaluator::parse_loclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_
         
         AddressExp addrExp;
 
-        if (arg.argType == 0) {
+        if (arg.argType == ArgVarType) {
             // block parsing don't need code range
-            Dwarf_Half loc_form = arg.argcomp.loc_form;
-            Range range = arg.argcomp.range;
+            Dwarf_Half loc_form = arg.argvar.loc_form;
+            Range range = arg.argvar.range;
 
             if(!debug_addr_unavailable){
                 addrExp.startpc = cooked_lopc;
@@ -455,6 +456,10 @@ Evaluator::parse_loclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_
                 addrExp.startpc = range.startpc;
                 addrExp.endpc = range.endpc;
             }
+        } else if (arg.argType == ArgBlockType) {
+            Range range = arg.argblk.range;
+            addrExp.startpc = range.startpc;
+            addrExp.endpc = range.endpc;
         }
 
         init_stack();
@@ -473,6 +478,12 @@ Evaluator::parse_loclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_
             if(ret != DW_DLV_OK){
                 
             }
+            if (arg.argType == ArgBlockType && arg.argblk.print) {
+                const char *op_name;
+                dwarf_get_OP_name(op, &op_name);
+                printf("%s %llx %llx %llx\n", op_name, op1, op2, op3);
+            }
+
             offset_to_index[offsetForBranch] = j;
             statistics.addOp(op);
 
@@ -521,6 +532,7 @@ Evaluator::parse_loclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_
                 piece_base += op1;
                 
             }else if (op==DW_OP_entry_value || op==DW_OP_GNU_entry_value) {
+                assert(arg.argType != ArgBlockType);
                 tempEvaluator.dbg = dbg;
                 AddressExp entry_value = tempEvaluator.parse_dwarf_block((Dwarf_Ptr)op2, op1);
                 Expression exp;
@@ -540,14 +552,12 @@ Evaluator::parse_loclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_
 
             }
 
-            else if (op==DW_OP_fbreg){
-                /*
-                    an offset + current frame base, and current frame base 
-                    usually use a `DW_OP_call_frame_cfa` op, which return
-                    the cfa value
+            else if (op==DW_OP_call_frame_cfa){
+                /*  get current `cfa` value, we postpone it 
+                    until the match time to decide which. 
+                    now we just bring enough of them
                 */
                 Expression cfa = Expression::createCFA();
-                cfa.offset = op1;
                 
                 stk.push(cfa);
                 /*
@@ -556,6 +566,7 @@ Evaluator::parse_loclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_
                 if(addrExp.startpc==0&&addrExp.endpc==0){
                     ret = op;
                     addrExp.valid = false;
+                    fprintf(stderr, "getting CFA values without range\n");
                     break;
                 }
                 addrExp.needCFA = true;
@@ -565,6 +576,36 @@ Evaluator::parse_loclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_
                     addrExp.cfa_pcs.push_back(cfa_pcs[i]);
                     addrExp.cfa_values.push_back(cfa_values[i]);
                 }
+            }
+
+            else if (op == DW_OP_fbreg) {
+                /*
+                    an offset + current frame base (usually a register or cfa value)
+                */
+                assert(arg.argType != ArgBlockType);
+                tempEvaluator.dbg = dbg;
+
+                /* frame base may be loc list, seldomly. if yes, we choose the one whose range cover `addrExp` */
+                int list_id = 0;
+                if (framebase.addrs.size() > 1) {
+                    for (unsigned i = 0; i < framebase.addrs.size(); i++ ) {
+                        if (framebase.addrs[i].startpc <= addrExp.startpc && addrExp.endpc <= framebase.addrs[i].endpc) {
+                            list_id = i;
+                        }
+                    }
+                    assert(0);
+                }
+
+                /* push it with offset into stack */
+                Expression fbreg;
+                const AddressExp &fb = framebase.addrs[list_id];
+                fbreg.setFromExp(fb);
+                if (fb.dwarfType == REGISTER) {
+                    fbreg.reg_scale[fb.reg] += 1;
+                }
+                fbreg.offset += op1;
+                stk.push(fbreg);
+
             }
             
             else{

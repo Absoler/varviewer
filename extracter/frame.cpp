@@ -6,8 +6,31 @@
 #include <memory>
 #include <vector>
 
+Address framebase;
 std::vector<Expression> cfa_values;
 std::vector<Dwarf_Addr> cfa_pcs;
+
+int updateFrameBase(Dwarf_Die die, const Range &range) {
+    int res;
+    Dwarf_Error err;
+    Dwarf_Bool has_framebase;
+    res = dwarf_hasattr(die, DW_AT_frame_base, &has_framebase, &err);
+    simple_handle_err(res)
+    if (!has_framebase) {
+        return 1;
+    }
+
+    Dwarf_Attribute framebase_attr;
+    Dwarf_Half framebase_form;
+    res = dwarf_attr(die, DW_AT_frame_base, &framebase_attr, &err);
+    simple_handle_err(res)
+    res = dwarf_whatform(framebase_attr, &framebase_form, &err);
+    simple_handle_err(res)
+
+    framebase = tempEvaluator.read_location(framebase_attr, framebase_form, range);
+    dwarf_dealloc_attribute(framebase_attr);
+    return (framebase.valid ? 0 : 1);
+}
 
 void testFDE(Dwarf_Debug dbg, bool print){
     Dwarf_Cie *cie_data;

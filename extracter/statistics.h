@@ -3,7 +3,7 @@
 #include <vector>
 #include <string>
 
-enum VariableType {
+enum DetailedDwarfType {
     INVALID = -1,
     MEM_GLOABL = 0,
     MEM_CFA = 1,
@@ -35,7 +35,7 @@ class Statistics{
     public:
     Statistics();
     void addOp(Dwarf_Small op);
-    VariableType solveOneExpr();
+    DetailedDwarfType solveOneExpr();
     void addVar(Dwarf_Half tag);
     void reset();
 

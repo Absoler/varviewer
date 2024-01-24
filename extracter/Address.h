@@ -35,7 +35,7 @@ class AddressExp : public Expression{
     Dwarf_Addr startpc, endpc;  // endpc not include in range
 
     bool needCFA = false;
-    // only valid when `DW_OP_fbreg` used, record cfa values between [startpc, endpc)
+    // only valid when `DW_OP_call_frame_cfa` used, record cfa values between [startpc, endpc)
     std::vector<Expression> cfa_values;
     std::vector<Dwarf_Addr> cfa_pcs;
 
