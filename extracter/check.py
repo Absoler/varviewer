@@ -31,7 +31,7 @@ print(f"old / new var:  {len(old_json)} / {len(new_json)}\nlack {len(lack)} and 
 
 # content testing
 addr_keys = ["valid"]
-addrExp_keys = ["type", "reg", "startpc", "endpc", "needCFA"]
+addrExp_keys = ["dwarfType", "reg", "startpc", "endpc", "needCFA", "detailedDwarfType"]
 exp_keys = ["regs", "offset", "valid", "empty", "hasChild", "isCFA"]
 
 right_count = 0

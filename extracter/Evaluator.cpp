@@ -18,6 +18,17 @@ Evaluator tempEvaluator;
     ret = x; \
     break;
 
+ArgLocation::ArgLocation(const Range& range, Dwarf_Half loc_form) {
+    argcomp.range = range;
+    argcomp.loc_form = loc_form;
+    argType = 0;
+}
+
+ArgLocation::ArgLocation(bool print) {
+    argblk.print = print;
+    argType = 1;
+}
+
 int Evaluator::init_stack(){
     while(!stk.empty()){
         stk.pop();
@@ -331,17 +342,17 @@ AddressExp Evaluator::parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_
     Dwarf_Error err;
     
     AddressExp addrExp;
-
+    Address addr;
     Dwarf_Half addrsize_size;
     Dwarf_Half offset_size;
 
     ret = dwarf_get_address_size(dbg, &addrsize_size, &err);
     ret = dwarf_get_offset_size(dbg, &offset_size, &err);
 
-    Dwarf_Loc_Head_c loc_head;
-    Dwarf_Unsigned listlen;
+    Dwarf_Loc_Head_c loclist_head;
+    Dwarf_Unsigned locentry_count;
 
-    ret = dwarf_loclist_from_expr_c(dbg, exp_bytes, exp_length, addrsize_size, offset_size, 5, &loc_head, &listlen, &err);
+    ret = dwarf_loclist_from_expr_c(dbg, exp_bytes, exp_length, addrsize_size, offset_size, 5, &loclist_head, &locentry_count, &err);
     if (ret != DW_DLV_OK){
         addrExp.valid = false;
         return addrExp;
@@ -349,83 +360,9 @@ AddressExp Evaluator::parse_dwarf_block(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_
 
     // extract from loclist
     // there's only one expression in DW_OP_entry_value's block
-    Dwarf_Small lkind, lle_value;
-    Dwarf_Unsigned raw_lopc=-1, raw_hipc=-1;
-    Dwarf_Bool debug_addr_unavailable = false;
-    Dwarf_Addr lopc = -1, hipc = -1;
-    Dwarf_Unsigned expr_op_count = 0;
-    Dwarf_Locdesc_c locdesc_entry;
-    Dwarf_Unsigned expression_offset;
-    Dwarf_Unsigned locdesc_offset;
-
-    ret = dwarf_get_locdesc_entry_d(loc_head, 0, 
-    &lle_value, 
-    &raw_lopc, &raw_hipc, 
-    &debug_addr_unavailable, &lopc, &hipc, 
-    &expr_op_count, &locdesc_entry, 
-    &lkind, &expression_offset, &locdesc_offset, &err);
-
-    if (ret != DW_DLV_OK){
-        addrExp.valid = false;
-        dwarf_dealloc_loc_head_c(loc_head);
-        return addrExp;
-    }
-
-    if (expr_op_count == 0){
-        addrExp.empty = true;
-        dwarf_dealloc_loc_head_c(loc_head);
-        return addrExp;
-    }
-
-    init_stack();
-
-    if(!debug_addr_unavailable){
-        addrExp.startpc = lopc;
-        addrExp.endpc = hipc;
-    }else{
-        addrExp.startpc = raw_lopc;
-        addrExp.endpc = raw_hipc;
-    }
-
-    Dwarf_Small op = 0;
-    Dwarf_Unsigned op1, op2, op3, offsetForBranch;
-
-    for(Dwarf_Unsigned i = 0; i<expr_op_count; ++i){
-        ret = dwarf_get_location_op_value_c(locdesc_entry, i, 
-        &op, &op1, &op2, &op3, 
-        &offsetForBranch, &err);
-
-        if(print){
-            const char *op_name;
-            dwarf_get_OP_name(op, &op_name);
-            printf("%s ", op_name);
-            printf(" %llx %llx %llx\n", op1, op2, op3);
-        }
-
-        if((op>=DW_OP_reg0&&op<=DW_OP_reg31) || op==DW_OP_regx){
-            // reg addressing
-            addrExp.dwarfType = REGISTER;
-            addrExp.reg = (op==DW_OP_regx? op1 : op-DW_OP_reg0);
-            dwarf_dealloc_loc_head_c(loc_head);
-            return addrExp;
-        }else{
-            // indirect addressing
-            ret = exec_operation(op, op1, op2, op3);
-            if(ret != 0){
-                const char *op_name;
-                dwarf_get_OP_name(op, &op_name);
-                fprintf(stderr, "parse entry_value's block wrong at %s\n", op_name);
-                addrExp.valid = false;
-                dwarf_dealloc_loc_head_c(loc_head);
-                return addrExp;
-            }
-        }
-    }
-
-    assert(!stk.empty());
-    addrExp.setFromExp(stk.top());
-    dwarf_dealloc_loc_head_c(loc_head);
-    return addrExp;
+    ArgLocation arg(print);
+    addr = parse_loclist(loclist_head, locentry_count, arg);
+    return addr.addrs[0];
 }
 
 Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range){
@@ -436,7 +373,7 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
     Address res;
     Dwarf_Error err;
     Dwarf_Loc_Head_c loclist_head;
-    Dwarf_Unsigned locentry_len;
+    Dwarf_Unsigned locentry_count;
     
     if(loc_form!=DW_FORM_sec_offset&&
         loc_form!=DW_FORM_exprloc&&
@@ -444,21 +381,34 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
         loc_form!=DW_FORM_data1&&loc_form!=DW_FORM_data2&&loc_form!=DW_FORM_data4&&loc_form!=DW_FORM_data8)
         res.valid = false;
     else
-        ret = dwarf_get_loclist_c(loc_attr, &loclist_head, &locentry_len, &err);
+        ret = dwarf_get_loclist_c(loc_attr, &loclist_head, &locentry_count, &err);
     
     if(ret!=DW_DLV_OK){
         res.valid = false;
         return res;
     }
 
-    for(Dwarf_Unsigned i = 0; i<locentry_len; i++){
+    ArgLocation arg(range, loc_form);
+    res = parse_loclist(loclist_head, locentry_count, arg);
+    return res;
+}
+
+Address
+Evaluator::parse_loclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_count, const ArgLocation &arg) {
+    
+    int ret;
+    Dwarf_Error err;
+    Address res;
+    
+
+    for(Dwarf_Unsigned i = 0; i<locentry_count; i++){
         Dwarf_Small lkind=0, lle_value=0;
         Dwarf_Unsigned raw_lopc=0, raw_hipc=0;
         Dwarf_Bool debug_addr_unavailable = false;
-        Dwarf_Addr lopc = 0;
-        Dwarf_Addr hipc = 0;
-        Dwarf_Unsigned loclist_expr_op_count = 0;
-        Dwarf_Locdesc_c locdesc_entry = 0;
+        Dwarf_Addr cooked_lopc = 0;
+        Dwarf_Addr cooked_hipc = 0;
+        Dwarf_Unsigned locexpr_op_count = 0;
+        Dwarf_Locdesc_c locentry = 0;
         Dwarf_Unsigned expression_offset = 0;
         Dwarf_Unsigned locdesc_offset = 0;
 
@@ -466,9 +416,9 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
         &lle_value,
         &raw_lopc, &raw_hipc,
         &debug_addr_unavailable,
-        &lopc,&hipc,
-        &loclist_expr_op_count,
-        &locdesc_entry,
+        &cooked_lopc,&cooked_hipc,
+        &locexpr_op_count,
+        &locentry,
         &lkind,
         &expression_offset,
         &locdesc_offset,
@@ -480,23 +430,31 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
         }
 
         
-        if(loclist_expr_op_count == 0){
+        if(locexpr_op_count == 0){
             continue;
         }
         
         AddressExp addrExp;
 
-        if(!debug_addr_unavailable){
-            addrExp.startpc = lopc;
-            addrExp.endpc = hipc;
-        }else{
-            addrExp.startpc = raw_lopc;
-            addrExp.endpc = raw_hipc;
-        }
+        if (arg.argType == 0) {
+            // block parsing don't need code range
+            Dwarf_Half loc_form = arg.argcomp.loc_form;
+            Range range = arg.argcomp.range;
 
-        if(loc_form == DW_FORM_exprloc){
-            addrExp.startpc = range.startpc;
-            addrExp.endpc = range.endpc;
+            if(!debug_addr_unavailable){
+                addrExp.startpc = cooked_lopc;
+                addrExp.endpc = cooked_hipc;
+            }else{
+                addrExp.startpc = raw_lopc;
+                addrExp.endpc = raw_hipc;
+            }
+
+            // `exprloc` is single location description, getting range from lexical block owning it
+            // `DW_FORM_exprloc` can only be `exprloc` class
+            if(loc_form == DW_FORM_exprloc){
+                addrExp.startpc = range.startpc;
+                addrExp.endpc = range.endpc;
+            }
         }
 
         init_stack();
@@ -509,10 +467,9 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
         
         std::map<Dwarf_Unsigned, Dwarf_Unsigned> offset_to_index;
         
-        for(Dwarf_Unsigned j = 0; j<loclist_expr_op_count; j++){
-            
+        for(Dwarf_Unsigned j = 0; j<locexpr_op_count; j++){
 
-            ret = dwarf_get_location_op_value_c(locdesc_entry, j, &op, &op1, &op2, &op3, &offsetForBranch, &err);
+            ret = dwarf_get_location_op_value_c(locentry, j, &op, &op1, &op2, &op3, &offsetForBranch, &err);
             if(ret != DW_DLV_OK){
                 
             }
@@ -525,7 +482,6 @@ Address Evaluator::read_location(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, 
                 addrExp.dwarfType = REGISTER;
                 addrExp.reg = (op==DW_OP_regx? op1 : op-DW_OP_reg0);
 
-                
             }
             else if(op==DW_OP_implicit_value || op==DW_OP_stack_value){
                 // immediate addressing
