@@ -1,0 +1,131 @@
+[
+{
+    "addrExps": [
+        {
+            "detailedDwarfType": 0,
+            "dwarfType": 0,
+            "empty": false,
+            "endpc": 4199154,
+            "hasChild": false,
+            "isCFA": false,
+            "needCFA": false,
+            "offset": 4210784,
+            "piece_size": 0,
+            "piece_start": 0,
+            "reg": 128,
+            "regs": null,
+            "sign": true,
+            "startpc": 4198694,
+            "valid": true
+        }
+    ],
+    "decl_col": 5,
+    "decl_file": "/root/varviewer/extracter/build/../../test/addrTest.c",
+    "decl_row": 2,
+    "name": "g1",
+    "valid": true
+},
+{
+    "addrExps": [
+        {
+            "detailedDwarfType": 0,
+            "dwarfType": 0,
+            "empty": false,
+            "endpc": 4199154,
+            "hasChild": false,
+            "isCFA": false,
+            "needCFA": false,
+            "offset": 4210788,
+            "piece_size": 0,
+            "piece_start": 0,
+            "reg": 128,
+            "regs": null,
+            "sign": true,
+            "startpc": 4198694,
+            "valid": true
+        }
+    ],
+    "decl_col": 9,
+    "decl_file": "/root/varviewer/extracter/build/../../test/addrTest.c",
+    "decl_row": 2,
+    "name": "g2",
+    "valid": true
+},
+{
+    "addrExps": [
+        {
+            "detailedDwarfType": 0,
+            "dwarfType": 0,
+            "empty": false,
+            "endpc": 4199154,
+            "hasChild": false,
+            "isCFA": false,
+            "needCFA": false,
+            "offset": 4210792,
+            "piece_size": 0,
+            "piece_start": 0,
+            "reg": 128,
+            "regs": null,
+            "sign": true,
+            "startpc": 4198694,
+            "valid": true
+        }
+    ],
+    "decl_col": 2,
+    "decl_file": "/root/varviewer/extracter/build/../../test/addrTest.c",
+    "decl_row": 7,
+    "name": "s1",
+    "valid": true
+},
+{
+    "addrExps": [
+        {
+            "detailedDwarfType": 0,
+            "dwarfType": 0,
+            "empty": false,
+            "endpc": 4199154,
+            "hasChild": false,
+            "isCFA": false,
+            "needCFA": false,
+            "offset": 4210800,
+            "piece_size": 0,
+            "piece_start": 0,
+            "reg": 128,
+            "regs": null,
+            "sign": true,
+            "startpc": 4198694,
+            "valid": true
+        }
+    ],
+    "decl_col": 5,
+    "decl_file": "/root/varviewer/extracter/build/../../test/addrTest.c",
+    "decl_row": 15,
+    "name": "a",
+    "valid": true
+},
+{
+    "addrExps": [
+        {
+            "detailedDwarfType": 0,
+            "dwarfType": 0,
+            "empty": false,
+            "endpc": 4199154,
+            "hasChild": false,
+            "isCFA": false,
+            "needCFA": false,
+            "offset": 4210804,
+            "piece_size": 0,
+            "piece_start": 0,
+            "reg": 128,
+            "regs": null,
+            "sign": true,
+            "startpc": 4198694,
+            "valid": true
+        }
+    ],
+    "decl_col": 8,
+    "decl_file": "/root/varviewer/extracter/build/../../test/addrTest.c",
+    "decl_row": 15,
+    "name": "b",
+    "valid": true
+}

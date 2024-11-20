@@ -1,11 +1,15 @@
 #pragma once
 
-#include "Expression.h"
+#include <memory>
 #include "Address.h"
+#include "Expression.h"
+#include "json.hpp"
+#include "type.h"
 class Address;
 class AddressExp;
+class Type;
 
-
+namespace varviewer {
 /*
     {
         "addrs" : [
@@ -20,8 +24,7 @@ class AddressExp;
     }
 */
 
-json createJsonforAddress(const Address& addr);
-
+json createJsonforAddress(const Address &addr);
 
 /*
     {
@@ -34,7 +37,7 @@ json createJsonforAddress(const Address& addr);
         "reg" : <Dwarf_Half>
         "piece_start" : <Dwarf_Addr>,
         "piece_size" : <int>
-        
+
         "needCFA" : <bool>
         "cfa_values" : [
             <Expression>
@@ -44,7 +47,7 @@ json createJsonforAddress(const Address& addr);
         ]
     }
 */
-json createJsonforAddressExp(const AddressExp& addrexp);
+json createJsonforAddressExp(const AddressExp &addrexp);
 
 /*
     {
@@ -66,4 +69,18 @@ json createJsonforAddressExp(const AddressExp& addrexp);
         "isCFA" : <Bool>
     }
 */
-json createJsonforExpression(const Expression& exp);
+json createJsonforExpression(const Expression &exp);
+
+/*
+
+Type: {
+    "typeName" : std::string
+    "size" : size_t;
+    "userDefined" : bool
+    "isPointer" : bool
+    "pointerLevel" : size_t
+}
+*/
+nlohmann::json createJsonForType(const std::shared_ptr<Type> &type);
+
+}  // namespace varviewer

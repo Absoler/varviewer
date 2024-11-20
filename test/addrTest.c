@@ -41,6 +41,7 @@ struct Big *big ;
 
 int main(){
     struct S* s2 = (struct S*)malloc(sizeof(struct S));
+    struct S** double_s2 = &s2;
     outer(&s1, &a);
     const int const_1 = 1;
     s2->f2 = 2;
