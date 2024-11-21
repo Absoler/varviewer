@@ -8,14 +8,14 @@ namespace varviewer {
 /*
 handle error
 */
-#define simple_handle_err(res) \
+#define SIMPLE_HANDLE_ERR(res) \
   do {                         \
     if (res != DW_DLV_OK) {    \
       return res;              \
     }                          \
   } while (0);
 
-#define handle_err(res, err)         \
+#define HANDLE_ERR(res, err)         \
   do {                               \
     if (res == DW_DLV_ERROR) {       \
       char *msg = dwarf_errmsg(err); \

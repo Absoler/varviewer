@@ -13,6 +13,8 @@ struct Big{
 };
 
 int a, b;
+volatile int c;
+const int d = 1;
 int arr[100];
 
 int inner(struct S *sin, int *p){
@@ -44,6 +46,9 @@ int main(){
     struct S** double_s2 = &s2;
     outer(&s1, &a);
     const int const_1 = 1;
+    int num = 2;
+    const int * num_p1 = &num;
+    int * const num_p2 = &num;
     s2->f2 = 2;
     outer(s2, &b);
 
@@ -61,4 +66,7 @@ int main(){
     big->fs1 = (struct S){1, 1};
     big->ps2->f1 = 0;
     g1 = big->fs1.f1 + g1 + big->ps2->f1;
+    free(s2);
+    free(big->ps2);
+    free(big);
 }

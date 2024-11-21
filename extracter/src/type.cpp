@@ -1,28 +1,27 @@
 
 #include "include/type.h"
-
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
-
 #include <cstddef>
 #include <iostream>
 #include <memory>
-#include <unordered_map>
-
 namespace varviewer {
 
-/* static member must init out of class */
-std::unordered_map<Dwarf_Off, std::shared_ptr<Type>> Type::offset_to_type_map_;
-
-Type::Type(const std::string &type_name, size_t size, const bool &user_defined, const bool &is_pointer,
-           size_t pointer_level)
-    : type_name_(type_name),
+Type::Type(std::string &&type_name, size_t size, const bool &user_defined, const bool &is_pointer, size_t pointer_level)
+    : type_name_(std::move(type_name)),
       size_(size),
       user_defined_(user_defined),
       is_pointer_(is_pointer),
       pointer_level_(pointer_level) {}
 
-auto Type::PareTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level)
+Type::Type(const Type &type)
+    : type_name_(type.type_name_),
+      size_(type.size_),
+      user_defined_(type.user_defined_),
+      is_pointer_(type.is_pointer_),
+      pointer_level_(type.pointer_level_) {}
+
+auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level)
     -> std::shared_ptr<Type> {
   Dwarf_Attribute type_attr;
   Dwarf_Die type_die;
@@ -35,22 +34,23 @@ auto Type::PareTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointe
   /* get DW_AT_type attribute */
   res = dwarf_attr(var_die, DW_AT_type, &type_attr, &err);
 
-  if (res == DW_DLV_ERROR) {
-    char *msg = dwarf_errmsg(err);
-    printf("%s\n", msg);
+  /*
+  must check no entry first, because the err may be null pointer
+  */
+  if (res == DW_DLV_NO_ENTRY) {
+    std::cout << "DW_AT_type attribute not found.\n";
     return nullptr;
   }
-
+  if (res == DW_DLV_ERROR) {
+    char *msg = dwarf_errmsg(err);
+    std::cout << "Error: " << msg << "\n";
+    return nullptr;
+  }
   /* get the dw_at_type really point to's type die offset in global*/
   res = dwarf_global_formref_b(type_attr, &type_global_offset, &is_info, &err);
 
   if (res != DW_DLV_OK) {
     return nullptr;
-  }
-
-  /* already recorded */
-  if (offset_to_type_map_.count(type_global_offset) != 0U) {
-    return offset_to_type_map_[type_global_offset];
   }
 
   /* using global offset to get the type die */
@@ -62,9 +62,22 @@ auto Type::PareTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointe
   /* get tag name */
   dwarf_tag(type_die, &tag, &err);
 
-  // TODO(tangc):add const type check
   if (tag == DW_TAG_pointer_type) {
-    return PareTypeDie(dbg, type_die, true, level + 1);
+    return ParseTypeDie(dbg, type_die, true, level + 1);
+  } else if (tag == DW_TAG_const_type || tag == DW_TAG_array_type || tag == DW_TAG_typedef ||
+             tag == DW_TAG_volatile_type || tag == DW_TAG_atomic_type || tag == DW_TAG_reference_type ||
+             tag == DW_TAG_restrict_type || tag == DW_TAG_rvalue_reference_type) {
+    /*
+    const type does not need to level + 1
+    and the recur is_pointer parameter should be same as the top caller
+    because for const int *, its die's type will point to a
+    pointer type die, then the pointer type die willl point
+    to a const type die, so need to keep same as the top caller
+    btw, for int const *, its dies's type will point to a const type die
+    then const type die point to point type die.
+    other tag similarly
+    */
+    return ParseTypeDie(dbg, type_die, is_pointer, level);
   }
   Dwarf_Unsigned byte_size;
   Dwarf_Bool has_byte_size = true;
@@ -85,26 +98,14 @@ auto Type::PareTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointe
   } else {
     return nullptr;
   }
-  std::cout << "make type object now ,level : " << level << "\n";
   if (tag == DW_TAG_base_type) {
     auto new_type = std::make_shared<Type>(std::string(type_name), byte_size, false, is_pointer, level);
-    // offset_to_type_map_[type_global_offset] = new_type;
     return new_type;
   } else {
     auto new_type = std::make_shared<Type>(std::string(type_name), byte_size, true, is_pointer, level);
-    // offset_to_type_map_[type_global_offset] = new_type;
     return new_type;
   }
 }
-auto Type::GetTypeName() const -> std::string { return type_name_; }
-
-auto Type::GetTypeSize() const -> size_t { return size_; }
-
-auto Type::IsUserDefined() const -> bool { return user_defined_; }
-
-auto Type::IsPointer() const -> bool { return is_pointer_; }
-
-auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
 
 }  // namespace varviewer
    // int Type::parse_type_die(Dwarf_Debug dbg, Dwarf_Die var_die, Type **type_p) {
@@ -118,10 +119,10 @@ auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
 //   int res = 0;
 
 //   res = dwarf_attr(var_die, DW_AT_type, &type_attr, &err);
-//   handle_err(res, err);
+//   HANDLE_ERR(res, err);
 
 //   res = dwarf_global_formref_b(type_attr, &type_global_offset, &is_info, &err);
-//   simple_handle_err(res);
+//   SIMPLE_HANDLE_ERR(res);
 
 //   if (type_map.find(type_global_offset) != type_map.end()) {
 //     *type_p = type_map[type_global_offset];
@@ -129,7 +130,7 @@ auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
 //   }
 
 //   res = dwarf_offdie_b(dbg, type_global_offset, is_info, &type_die, &err);
-//   simple_handle_err(res);
+//   SIMPLE_HANDLE_ERR(res);
 
 //   dwarf_tag(type_die, &tag, &err);
 
@@ -142,20 +143,20 @@ auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
 //     Dwarf_Half encoding_form;
 //     Dwarf_Unsigned encoding, size;
 //     res = dwarf_attr(type_die, DW_AT_encoding, &encoding_attr, &err);
-//     handle_err(res, err);
+//     HANDLE_ERR(res, err);
 //     res = dwarf_whatform(encoding_attr, &encoding_form, &err);
-//     handle_err(res, err);
+//     HANDLE_ERR(res, err);
 //     encoding = get_const_u(encoding_form, encoding_attr, &err);
 
 //     Dwarf_Bool has_byte = true;
 //     res = dwarf_hasattr(type_die, DW_AT_byte_size, &has_byte, &err);
-//     handle_err(res, err);
+//     HANDLE_ERR(res, err);
 //     if (has_byte) {
 //       res = dwarf_bytesize(type_die, &size, &err);
-//       handle_err(res, err);
+//       HANDLE_ERR(res, err);
 //     } else {
 //       res = dwarf_bitsize(type_die, &size, &err);
-//       handle_err(res, err) if (size % 8 != 0) { return DW_DLV_ERROR; }
+//       HANDLE_ERR(res, err) if (size % 8 != 0) { return DW_DLV_ERROR; }
 //       size /= 8;
 //     }
 
@@ -213,7 +214,7 @@ auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
 //     }
 
 //     res = dwarf_dietype_offset(var_die, &type_off, &err);
-//     simple_handle_err(res)
+//     SIMPLE_HANDLE_ERR(res)
 
 //     Dwarf_Die type_die, pointer_type_die, typedef_die;
 //     Dwarf_Half tag;
@@ -225,9 +226,9 @@ auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
 //         // take pointee type
 //         pointer_type_die = type_die;
 //         res = dwarf_dietype_offset(var_die, &type_off, &err);
-//         simple_handle_err(res)
+//         SIMPLE_HANDLE_ERR(res)
 //         res = dwarf_offdie_b(dbg, type_off, is_info, &type_die, &err);
-//         simple_handle_err(res)
+//         SIMPLE_HANDLE_ERR(res)
 //         dwarf_tag(type_die, &tag, &err);
 //     }
 
@@ -235,9 +236,9 @@ auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
 //         // try take real definition
 //         typedef_die = typedef_die;
 //         res = dwarf_dietype_offset(var_die, &type_off, &err);
-//         simple_handle_err(res)
+//         SIMPLE_HANDLE_ERR(res)
 //         res = dwarf_offdie_b(dbg, type_off, is_info, &type_die, &err);
-//         simple_handle_err(res)
+//         SIMPLE_HANDLE_ERR(res)
 //         dwarf_tag(type_die, &tag, &err);
 //     }
 
@@ -248,7 +249,7 @@ auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
 //     // parse structural die
 //     Dwarf_Die member;
 //     res = dwarf_child(type_die, &member, &err);
-//     simple_handle_err(res)
+//     SIMPLE_HANDLE_ERR(res)
 
 //     type->clear();
 //     do{

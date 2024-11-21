@@ -32,7 +32,7 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name) {
   Dwarf_Bool has_name = false, has_origin = false;
   res = dwarf_hasattr(die, DW_AT_name, &has_name, &err);
   res = dwarf_hasattr(die, DW_AT_abstract_origin, &has_origin, &err);
-  simple_handle_err(res);
+  SIMPLE_HANDLE_ERR(res);
   if (has_name) {
     Dwarf_Attribute name_attr;
     Dwarf_Half name_form;
@@ -51,9 +51,9 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name) {
     Dwarf_Attribute off_attr;
     Dwarf_Half off_form;
     res = dwarf_attr(die, DW_AT_abstract_origin, &off_attr, &err);
-    simple_handle_err(res)
+    SIMPLE_HANDLE_ERR(res)
 
-        res = dwarf_whatform(off_attr, &off_form, &err);
+    res = dwarf_whatform(off_attr, &off_form, &err);
     if (res != DW_DLV_OK) {
       dwarf_dealloc_attribute(off_attr);
       return 1;

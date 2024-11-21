@@ -23,7 +23,7 @@ int updateFrameBase(Dwarf_Die die, const Range &range) {
   Dwarf_Bool has_framebase;
   // DW_AT_frmae_base 描述当前函数栈帧的基地址
   res = dwarf_hasattr(die, DW_AT_frame_base, &has_framebase, &err);
-  simple_handle_err(res);
+  SIMPLE_HANDLE_ERR(res);
   if (!has_framebase) {
     return 1;
   }
@@ -32,10 +32,10 @@ int updateFrameBase(Dwarf_Die die, const Range &range) {
   Dwarf_Half framebase_form;
   // 获取 frame_base
   res = dwarf_attr(die, DW_AT_frame_base, &framebase_attr, &err);
-  simple_handle_err(res);
+  SIMPLE_HANDLE_ERR(res);
   // 获取 form
   res = dwarf_whatform(framebase_attr, &framebase_form, &err);
-  simple_handle_err(res);
+  SIMPLE_HANDLE_ERR(res);
 
   framebase = tempEvaluator.ReadLocation(framebase_attr, framebase_form, range);
   dwarf_dealloc_attribute(framebase_attr);

@@ -1,3 +1,5 @@
 {
-    "cmake.sourceDirectory": "/root/varviewer/extracter"
+    "cmake.sourceDirectory": "/root/varviewer/extracter",
+    "editor.fontSize": 18,
+    "files.autoSave": "afterDelay"
 }
