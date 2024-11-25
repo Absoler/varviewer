@@ -1,6 +1,7 @@
 #include "include/varLocator.h"
 
 #include <fcntl.h>
+#include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 #include <unistd.h>
 
@@ -13,6 +14,7 @@
 #include <memory>
 #include <string>
 
+#include "include/StructType.h"
 #include "include/type.h"
 #include "include/util.h"
 
@@ -319,7 +321,7 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
         }
         auto type_info = Type::ParseTypeDie(dbg, fa_die, false, 0);
         if (type_info != nullptr) {
-          std::cout << "type: ;" << type_info->GetTypeName();
+          printf("type: %s;", type_info->GetTypeName().c_str());
         }
 
         // DW_AT_LOCATION
@@ -348,8 +350,10 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
           // fprintf(stderr, "%s no location\n", var_name);
           varNoLocation += 1;
         }
+      } else if (tag == DW_TAG_structure_type) {
+        // TODO(tangc): parse struct type
+        auto struct_type = StructType::ParseStructType(dbg, fa_die);
       }
-
       printf("\n");
     }
     // get child DIE

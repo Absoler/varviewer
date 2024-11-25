@@ -41,12 +41,16 @@ class Type {
  private:
   /*type name*/
   std::string type_name_;
+
   /* size */
   size_t size_;
+
   /* whether user-defined*/
   bool user_defined_;
+
   /* whether pointer */
   bool is_pointer_{false};
+
   /*pointer level*/
   size_t pointer_level_{0};
 };

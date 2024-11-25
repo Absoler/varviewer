@@ -6,13 +6,13 @@
 
 #include "Address.h"
 #include "Evaluator.h"
+#include "StructType.h"
 #include "frame.h"
 #include "jsonUtil.h"
 #include "ranges.h"
 #include "statistics.h"
 #include "type.h"
 #include "util.h"
-
 namespace varviewer {
 
 extern Statistics statistics;

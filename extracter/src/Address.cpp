@@ -56,7 +56,7 @@ void Address::Output() {
 
 void Address::UpdateValid() {
   valid_ = true;
-  for (vector<AddressExp>::iterator it = addrs_.begin(); it != addrs_.end();) {
+  for (auto it = addrs_.begin(); it != addrs_.end();) {
     if (it->valid_) {
       it++;
     } else {

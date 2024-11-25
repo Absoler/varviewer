@@ -47,7 +47,6 @@ int Evaluator::ExecOperation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned 
     case DW_OP_addr:
       stk_.push(std::move(Expression(op1)));
       break;
-
     case DW_OP_deref: {
       auto addr = std::make_shared<Expression>();
       addr->SetFromExp(stk_.top());
@@ -581,6 +580,11 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
           fprintf(stderr, "parse expression wrong at %s\n", op_name);
           addrExp.valid_ = false;
           break;
+        }
+        /* gloval var , set its start pc and end pc to 0 */
+        if (op == DW_OP_addr) {
+          addrExp.startpc_ = 0;
+          addrExp.endpc_ = 0;
         }
       }
 

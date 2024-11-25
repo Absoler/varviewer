@@ -37,7 +37,7 @@ class Expression:
     def __init__(self, jsonExp:dict = {}) -> None:
         if jsonExp:
             self.sign:bool = jsonExp["sign"]
-            self.offset:int = jsonExp["offset"] if not self.sign else ctypes.c_int64(jsonExp["offset"]).value
+            self.offset:int = jsonExp["offset"]
             self.regs = jsonExp["regs"]
             if self.regs:
                 self.regs:dict = {int(reg) : self.regs[reg] for reg in self.regs}
@@ -455,10 +455,11 @@ class VarMgr:
                 self.vars.append(var)
         
         print(f"load {path} done!", file=sys.stderr)
-
-        self.vars = sorted(self.vars, key=cmp_to_key(cmp_addrExp))
         
+        # sort
+        self.vars = sorted(self.vars, key=cmp_to_key(cmp_addrExp))
         self.globals = []
+        # record global
         for i in range(0, len(self.vars)):
             if self.vars[i].startpc == 0 and self.vars[i].endpc == 0:
                 if self.vars[i].detailedDwarfType == DetailedDwarfType.MEM_GLOABL:

@@ -36,6 +36,8 @@ auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_point
 
   /*
   must check no entry first, because the err may be null pointer
+  some die may not have DW_AT_type attribute(happen in recur ,
+  now i do not know why, but it is true)
   */
   if (res == DW_DLV_NO_ENTRY) {
     std::cout << "DW_AT_type attribute not found.\n";

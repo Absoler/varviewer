@@ -46,7 +46,7 @@ class AddressExp : public Expression {
   /* detailed type of variable*/
   int detailedDwarfType_;
 
-  /*valid if type == REGISTER 如果 reg==128，说明这个变量不是寄存器变量*/
+  /*valid if type == REGISTER, if reg == 128 , then this is not a register var */
   Dwarf_Half reg_{REG_END};
 
   /*endpc not include in range*/
@@ -56,7 +56,7 @@ class AddressExp : public Expression {
   bool needCFA_{false};
   /*
   only valid when `DW_OP_call_frame_cfa` used, record cfa values between [startpc, endpc)
-  对应全局变量frameBase
+  according to the global variable framebase
   */
   std::vector<Dwarf_Addr> cfa_pcs_;
 
@@ -64,7 +64,7 @@ class AddressExp : public Expression {
 };
 
 /*
-    `Address` record address info of some lifetimes of a variable
+`Address` record address info of some lifetimes of a variable
 */
 class Address {
  public:
@@ -80,18 +80,19 @@ class Address {
 
   bool valid_{false};
 
-  /*name*/
+  /* name */
   std::string name_;
 
+  /* type info */
   std::shared_ptr<Type> type_info_;
 
-  /* addrs包括所有AddressExp 一个addrExp对应一个location expression*/
+  /* addrs contains of all AddrExp, one AddrExp correspond to a location operation*/
   std::vector<AddressExp> addrs_;
 
-  /* 源文件 */
+  /* source file */
   std::string decl_file_;
 
-  /* 声明行，列 */
+  /* declare row and line */
   Dwarf_Unsigned decl_row_, decl_col_;
 };
 

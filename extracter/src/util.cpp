@@ -26,6 +26,9 @@ Dwarf_Unsigned get_const_u(Dwarf_Half form, Dwarf_Attribute attr, Dwarf_Error *e
   return offset;
 }
 
+/*
+get the DW_AT_name attribute of a DIE
+*/
 int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name) {
   Dwarf_Error err;
   int res;
