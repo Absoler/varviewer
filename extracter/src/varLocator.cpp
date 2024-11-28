@@ -1,20 +1,15 @@
 #include "include/varLocator.h"
-
 #include <fcntl.h>
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 #include <unistd.h>
-
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <iostream>
-
 #include <memory>
 #include <string>
-
-#include "include/StructType.h"
 #include "include/type.h"
 #include "include/util.h"
 
@@ -35,34 +30,53 @@ bool isFirstJson = true;
 int varNoLocation = 0;
 
 namespace varviewer {
-// 一个全局的statistics变量
+/* a global sta */
 Statistics statistics{};
 
+/**
+ * @brief
+         get the location list or location expression of the variable, and outout to json
+ * @param dbg
+         the dwarf debug info
+ * @param cu_die
+          the compilation unit die
+ * @param var_die
+          the variable die
+ * @param range
+          the range of the block or sub_program that may contain the variable
+ * @param name
+          the name of the variable
+ * @param type_info
+          the type info of the variable
+ * @return
+          0 if success
+ */
 int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range range, char *name,
                   const std::shared_ptr<Type> &type_info) {
   std::cout << "in test evaluator\n";
   int res;
   Dwarf_Error err;
 
-  // 指向 DW_AT_location的指针
+  /* a pointer point to the DW_AT_location */
   Dwarf_Attribute location_attr;
   res = dwarf_attr(var_die, DW_AT_location, &location_attr, &err);
-  SIMPLE_HANDLE_ERR(res) Dwarf_Half loc_form;
+  SIMPLE_HANDLE_ERR(res);
+  Dwarf_Half loc_form;
   res = dwarf_whatform(location_attr, &loc_form, &err);
   SIMPLE_HANDLE_ERR(res);
 
   Evaluator evaluator;
   evaluator.dbg_ = dbg;
-  // range用于传递可能拥有这个变量的block sub_program的start_pc和end_pc
+  /* range use to pass the start pc and end pc of the sub_program which contain the variable */
+
+  // TODO(tangc) : add a address to the struct member for each
   Address addr = evaluator.ReadLocation(location_attr, loc_form, range);
   if (addr.valid_ == false) {
     return 1;
   }
-
   if (name) {
     addr.name_ = std::string(name);
   }
-
   char *file_name = NULL;
   Dwarf_Unsigned decl_row = -1, decl_col = -1;
   res = TestDeclPos(dbg, cu_die, var_die, &file_name, &decl_row, &decl_col, 0);
@@ -72,7 +86,6 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
   addr.type_info_ = type_info;
   Dwarf_Half tag;
   dwarf_tag(var_die, &tag, &err);
-
   if (useJson) {
     json addrJson = createJsonforAddress(addr);
     std::string jsonStr = addrJson.dump(4);
@@ -278,7 +291,22 @@ int PrintRawLocation(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc_f
   return ret;
 }
 
-/* pre-order traverse   cu_die:cu, fa_die: the current accessed die */
+/**
+ * @brief
+         pre-order traverse the DIE tree to get the variable information
+ * @param cu_die
+          the compilation unit die
+ * @param dbg
+          the dwarf debug info
+ * @param fa_die
+          the current accessing die
+ * @param range
+          the range of the block or sub_program that may contain the variable
+ * @param is_info
+          whether the die is in the .debug_info section
+ * @param indent
+          the indent of the output , used to format the output
+ */
 void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range range, bool is_info, int indent) {
   Dwarf_Error err;
   Range fa_range(range);
@@ -307,6 +335,11 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
         modifyRange = true;
       }
 
+      /* if has DW_TAG_structure_type, parse it , will save in the Type's static member struct_infos_ */
+      if (tag == DW_TAG_structure_type) {
+        Type::ParseStructType(dbg, fa_die);
+      }
+
       /* if has DW_TAG_frame_base, update the global frame base */
       updateFrameBase(fa_die, range);
 
@@ -319,7 +352,7 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
         if (res == DW_DLV_OK) {
           printf(" name: %s;", var_name);
         }
-        auto type_info = Type::ParseTypeDie(dbg, fa_die, false, 0);
+        auto type_info = Type::ParseTypeDie(dbg, fa_die);
         if (type_info != nullptr) {
           printf("type: %s;", type_info->GetTypeName().c_str());
         }
@@ -350,9 +383,6 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
           // fprintf(stderr, "%s no location\n", var_name);
           varNoLocation += 1;
         }
-      } else if (tag == DW_TAG_structure_type) {
-        // TODO(tangc): parse struct type
-        auto struct_type = StructType::ParseStructType(dbg, fa_die);
       }
       printf("\n");
     }

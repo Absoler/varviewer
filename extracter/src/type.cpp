@@ -5,7 +5,15 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <vector>
+#include "include/util.h"
 namespace varviewer {
+
+StructType::StructType(std::string &&struct_name, size_t struct_size)
+    : struct_name_(std::move(struct_name)), struct_size_(struct_size) {}
+
+/* static member must init out of class */
+std::vector<std::shared_ptr<StructType>> Type::struct_infos_;
 
 Type::Type(std::string &&type_name, size_t size, const bool &user_defined, const bool &is_pointer, size_t pointer_level)
     : type_name_(std::move(type_name)),
@@ -21,7 +29,27 @@ Type::Type(const Type &type)
       is_pointer_(type.is_pointer_),
       pointer_level_(type.pointer_level_) {}
 
-auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level)
+/* public interface */
+auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die) -> std::shared_ptr<Type> {
+  return ParseTypeDieInternal(dbg, var_die, false, 0);
+}
+
+/**
+ * @brief
+         parse type info of the var die
+ * @param dbg
+         the dwarf debug info
+ * @param var_die
+         the variable die interested
+ * @param is_pointer
+         whether the type is a pointer
+ * @param level
+         the pointer level
+ * @return
+         std::shared_ptr<Type> the type info
+ *       ,nullptr if failed
+ */
+auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level)
     -> std::shared_ptr<Type> {
   Dwarf_Attribute type_attr;
   Dwarf_Die type_die;
@@ -65,7 +93,7 @@ auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_point
   dwarf_tag(type_die, &tag, &err);
 
   if (tag == DW_TAG_pointer_type) {
-    return ParseTypeDie(dbg, type_die, true, level + 1);
+    return ParseTypeDieInternal(dbg, type_die, true, level + 1);
   } else if (tag == DW_TAG_const_type || tag == DW_TAG_array_type || tag == DW_TAG_typedef ||
              tag == DW_TAG_volatile_type || tag == DW_TAG_atomic_type || tag == DW_TAG_reference_type ||
              tag == DW_TAG_restrict_type || tag == DW_TAG_rvalue_reference_type) {
@@ -79,7 +107,7 @@ auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_point
     then const type die point to point type die.
     other tag similarly
     */
-    return ParseTypeDie(dbg, type_die, is_pointer, level);
+    return ParseTypeDieInternal(dbg, type_die, is_pointer, level);
   }
   Dwarf_Unsigned byte_size;
   Dwarf_Bool has_byte_size = true;
@@ -104,11 +132,93 @@ auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_point
     auto new_type = std::make_shared<Type>(std::string(type_name), byte_size, false, is_pointer, level);
     return new_type;
   } else {
+    /* user defined struct */
     auto new_type = std::make_shared<Type>(std::string(type_name), byte_size, true, is_pointer, level);
+    for (const auto &struct_info : struct_infos_) {
+      if (struct_info->GetStructName() == std::string(type_name)) {
+        /* get member name, type and offset*/
+        for (const auto &member_name : struct_info->GetMemberNames()) {
+          new_type->InsertName(member_name);
+          new_type->SetMemberType(member_name, struct_info->GetMemberType(member_name));
+          new_type->SetMemberOffset(member_name, struct_info->GetMemberOffset(member_name));
+        }
+        break;
+      }
+    }
     return new_type;
   }
 }
 
+/**
+ * @brief
+         parse struct type info of the struct die, and record it in the static member struct_infos_
+ * @param dbg
+         the dwarf debug info
+ * @param struct_die
+         the struct die interested
+ * @return
+         std::shared_ptr<StructType> the struct type info
+ *       ,nullptr if failed
+ */
+void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
+  Dwarf_Error err;
+  Dwarf_Unsigned byte_size;
+  Dwarf_Bool has_byte_size = true;
+  Dwarf_Die child_die;
+  Dwarf_Attribute offset_attr;
+  auto struct_info = std::make_shared<StructType>();
+  char *name;
+  int res;
+  res = get_name(dbg, struct_die, &name);
+  if (res == DW_DLV_OK) {
+    printf("struct name: %s;", name);
+    struct_info->SetStructName(std::string(name));
+  }
+
+  res = dwarf_hasattr(struct_die, DW_AT_byte_size, &has_byte_size, &err);
+  if (!has_byte_size) {
+    return;
+  }
+  res = dwarf_bytesize(struct_die, &byte_size, &err);
+  if (res != DW_DLV_OK) {
+    return;
+  }
+  struct_info->SetStructSize(byte_size);
+
+  if (dwarf_child(struct_die, &child_die, &err) != DW_DLV_OK) {
+    /* has no member */
+    return;
+  }
+  /* traverse all the DW_TAG_member */
+  do { /* get DW_AT_data_member_location attr */
+    res = dwarf_attr(child_die, DW_AT_data_member_location, &offset_attr, &err);
+    if (res != DW_DLV_OK) {
+      return;
+    }
+    /* get member name */
+    char *member_name;
+    res = get_name(dbg, child_die, &member_name);
+
+    /* get the member offser in struct */
+    Dwarf_Unsigned offset_in_struct;
+    res = dwarf_formudata(offset_attr, &offset_in_struct, &err);
+    printf("struct member name : %s;", member_name);
+    printf("struct member offset : %llu;", offset_in_struct);
+
+    /* get the meber type info */
+    auto type_info = Type::ParseTypeDie(dbg, child_die);
+
+    /* save */
+    struct_info->SetMemberOffset(std::string(member_name), offset_in_struct);
+    struct_info->SetMemberType(std::string(member_name), type_info);
+    struct_info->InsertName(std::string(member_name));
+
+    /* get next sibling */
+  } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
+
+  struct_infos_.push_back(struct_info);
+  dwarf_dealloc_attribute(offset_attr);
+}
 }  // namespace varviewer
    // int Type::parse_type_die(Dwarf_Debug dbg, Dwarf_Die var_die, Type **type_p) {
    //   Dwarf_Attribute type_attr;

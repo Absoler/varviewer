@@ -137,7 +137,7 @@ json createJsonforAddress(const Address &addr) {
   }
   res["name"] = addr.name_;
   if (addr.type_info_ != nullptr) {
-    res["type"] = createJsonForType(addr.type_info_);
+    res["type_info"] = createJsonForType(addr.type_info_);
   }
   res["decl_file"] = addr.decl_file_;
   res["decl_row"] = addr.decl_row_;
@@ -147,13 +147,53 @@ json createJsonforAddress(const Address &addr) {
   return res;
 }
 
+/*
+  {
+      "typeName" : <string>
+      "size" : <size_t>
+      "userDefined" : <bool>
+      "isPointer" : <bool>
+      "pointerLevel" : <size_t>
+      "members" : {
+          <string>(offset) : {
+              "name" : <string>
+              "type" : <Type>
+          }
+      }
+  }
+*/
 json createJsonForType(const std::shared_ptr<Type> &type) {
   nlohmann::json res;
+
   res["typeName"] = type->GetTypeName();
   res["size"] = type->GetTypeSize();
   res["userDefined"] = type->IsUserDefined();
   res["isPointer"] = type->IsPointer();
   res["pointerLevel"] = type->GetPointerLevel();
+
+  /* if user defined , add members info */
+  if (type->IsUserDefined()) {
+    auto members_json = nlohmann::json::object();
+
+    /* get member info */
+    const auto &member_names = type->GetMemberNames();
+    const auto &member_types = type->GetMemberTypes();
+    const auto &member_offsets = type->GetMemberOffsets();
+
+    /* iter the memer name and record */
+    for (const auto &name : member_names) {
+      Dwarf_Unsigned offset = member_offsets.at(name);
+      nlohmann::json member_info = nlohmann::json::object();
+      member_info["name"] = name;
+      auto type_info = member_types.at(name);
+      /* recur */
+      member_info["type"] = createJsonForType(type_info);
+      members_json[std::to_string(offset)] = member_info;
+    }
+
+    /* add member info to the return json */
+    res["members"] = members_json;
+  }
 
   return res;
 }

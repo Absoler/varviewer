@@ -48,8 +48,8 @@ you need 2 steps to match variables.
 
 ### extract debug info
 
-1. go into extracter/ and `make extracter`
-2. execute `./extracter <binary-to-extract> -o <json-file>`, the json file contains organized debug info to feed the analysis module, besides there are also some debug option(s)
+1. go into extracter/ and `mkdir build -p && cd build && cmake.. && make`
+2. execute `./bin/extracter <binary-to-extract> -o <json-file>`, the json file contains organized debug info to feed the analysis module, besides there are also some debug option(s)
     + `-r` for print raw dwarf expression
     + `-nc` for only print complex expressions
     + `-fde` for print CFA info, and `--no-traverse` for avoidance of fully traversing, and quickly print other info

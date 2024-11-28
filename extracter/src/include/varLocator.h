@@ -6,7 +6,6 @@
 
 #include "Address.h"
 #include "Evaluator.h"
-#include "StructType.h"
 #include "frame.h"
 #include "jsonUtil.h"
 #include "ranges.h"

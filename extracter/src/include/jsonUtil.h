@@ -1,5 +1,4 @@
 #pragma once
-
 #include <memory>
 #include "Address.h"
 #include "Expression.h"
@@ -72,15 +71,20 @@ json createJsonforAddressExp(const AddressExp &addrexp);
 json createJsonforExpression(const Expression &exp);
 
 /*
-
-Type: {
-    "typeName" : std::string
-    "size" : size_t;
-    "userDefined" : bool
-    "isPointer" : bool
-    "pointerLevel" : size_t
-}
+  {
+      "typeName" : <string>
+      "size" : <size_t>
+      "userDefined" : <bool>
+      "isPointer" : <bool>
+      "pointerLevel" : <size_t>
+      "members" : {
+          <string>(offset) : {
+              "name" : <string>
+              "type" : <Type>  // may recursive here
+          }
+      }
+  }
 */
-nlohmann::json createJsonForType(const std::shared_ptr<Type> &type);
+json createJsonForType(const std::shared_ptr<Type> &type);
 
 }  // namespace varviewer

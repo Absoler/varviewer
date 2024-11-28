@@ -1,7 +1,7 @@
 #pragma once
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
-
+#include <iostream>
 #include <string>
 
 namespace varviewer {
