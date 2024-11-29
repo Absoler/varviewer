@@ -4,8 +4,10 @@
 #include <libdwarf-0/libdwarf.h>
 #include <cstddef>
 #include <iostream>
+#include <iterator>
+#include <list>
 #include <memory>
-#include <vector>
+#include <unordered_map>
 #include "include/util.h"
 namespace varviewer {
 
@@ -13,7 +15,9 @@ StructType::StructType(std::string &&struct_name, size_t struct_size)
     : struct_name_(std::move(struct_name)), struct_size_(struct_size) {}
 
 /* static member must init out of class */
-std::vector<std::shared_ptr<StructType>> Type::struct_infos_;
+std::list<std::shared_ptr<StructType>> Type::struct_infos_;
+
+std::unordered_map<std::string, std::list<std::shared_ptr<StructType>>::iterator> Type::struct_name_to_iter_;
 
 Type::Type(std::string &&type_name, size_t size, const bool &user_defined, const bool &is_pointer, size_t pointer_level)
     : type_name_(std::move(type_name)),
@@ -36,11 +40,12 @@ auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die) -> std::shared_ptr<T
 
 /**
  * @brief
-         parse type info of the var die
+         parse type info of the var die,get the dw_at_type attribute and parse it until base type and user defined
+         struct type
  * @param dbg
          the dwarf debug info
  * @param var_die
-         the variable die interested
+         the variable die interested (has DW_AT_type attribute)
  * @param is_pointer
          whether the type is a pointer
  * @param level
@@ -134,16 +139,13 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
   } else {
     /* user defined struct */
     auto new_type = std::make_shared<Type>(std::string(type_name), byte_size, true, is_pointer, level);
-    for (const auto &struct_info : struct_infos_) {
-      if (struct_info->GetStructName() == std::string(type_name)) {
-        /* get member name, type and offset*/
-        for (const auto &member_name : struct_info->GetMemberNames()) {
-          new_type->InsertName(member_name);
-          new_type->SetMemberType(member_name, struct_info->GetMemberType(member_name));
-          new_type->SetMemberOffset(member_name, struct_info->GetMemberOffset(member_name));
-        }
-        break;
-      }
+    /* it : (struct name, std::list<std::shared_ptr<StructType>>::iterator) */
+    auto it = struct_name_to_iter_.find(std::string(type_name));
+    if (it != struct_name_to_iter_.end()) {
+      auto &struct_ptr = *(it->second);
+      new_type->member_name_ = struct_ptr->GetMemberNames();
+      new_type->member_type_ = struct_ptr->GetMemberTypes();
+      new_type->member_offset_ = struct_ptr->GetMemberOffsets();
     }
     return new_type;
   }
@@ -151,7 +153,8 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
 
 /**
  * @brief
-         parse struct type info of the struct die, and record it in the static member struct_infos_
+         parse struct type info of the struct die which is a dw_tag_struct_type, traverse all the member which is
+          a dw_tag_member, and save the struct info to the static member struct_infos_
  * @param dbg
          the dwarf debug info
  * @param struct_die
@@ -216,172 +219,10 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
     /* get next sibling */
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
+  /* save struct and iter */
   struct_infos_.push_back(struct_info);
+  struct_name_to_iter_[struct_info->GetStructName()] = std::prev(struct_infos_.end());
+  std::cout << " struct " << struct_info->GetStructName() << " saved\n";
   dwarf_dealloc_attribute(offset_attr);
 }
 }  // namespace varviewer
-   // int Type::parse_type_die(Dwarf_Debug dbg, Dwarf_Die var_die, Type **type_p) {
-   //   Dwarf_Attribute type_attr;
-   //   Dwarf_Die type_die;
-   //   Dwarf_Off type_global_offset;
-   //   Dwarf_Bool is_info;
-   //   Dwarf_Error err;
-   //   Dwarf_Half tag;
-
-//   int res = 0;
-
-//   res = dwarf_attr(var_die, DW_AT_type, &type_attr, &err);
-//   HANDLE_ERR(res, err);
-
-//   res = dwarf_global_formref_b(type_attr, &type_global_offset, &is_info, &err);
-//   SIMPLE_HANDLE_ERR(res);
-
-//   if (type_map.find(type_global_offset) != type_map.end()) {
-//     *type_p = type_map[type_global_offset];
-//     return DW_DLV_OK;
-//   }
-
-//   res = dwarf_offdie_b(dbg, type_global_offset, is_info, &type_die, &err);
-//   SIMPLE_HANDLE_ERR(res);
-
-//   dwarf_tag(type_die, &tag, &err);
-
-//   Type *type = new Type();
-//   *type_p = type;
-//   type_map[type_global_offset] = type;
-
-//   if (tag == DW_TAG_base_type) {
-//     Dwarf_Attribute encoding_attr;
-//     Dwarf_Half encoding_form;
-//     Dwarf_Unsigned encoding, size;
-//     res = dwarf_attr(type_die, DW_AT_encoding, &encoding_attr, &err);
-//     HANDLE_ERR(res, err);
-//     res = dwarf_whatform(encoding_attr, &encoding_form, &err);
-//     HANDLE_ERR(res, err);
-//     encoding = get_const_u(encoding_form, encoding_attr, &err);
-
-//     Dwarf_Bool has_byte = true;
-//     res = dwarf_hasattr(type_die, DW_AT_byte_size, &has_byte, &err);
-//     HANDLE_ERR(res, err);
-//     if (has_byte) {
-//       res = dwarf_bytesize(type_die, &size, &err);
-//       HANDLE_ERR(res, err);
-//     } else {
-//       res = dwarf_bitsize(type_die, &size, &err);
-//       HANDLE_ERR(res, err) if (size % 8 != 0) { return DW_DLV_ERROR; }
-//       size /= 8;
-//     }
-
-//     dwarf_dealloc_attribute(encoding_attr);
-
-//     if (encoding == DW_ATE_signed || encoding == DW_ATE_signed_char) {
-//       type->has_sign = true;
-//     } else if (encoding == DW_ATE_unsigned_char || encoding == DW_ATE_unsigned) {
-//       type->has_sign = false;
-//     } else {
-//       type->valid = false;
-//     }
-//     type->size = size;
-//   } else {
-//     return DW_DLV_ERROR;
-//   }
-//   return 0;
-// }
-
-// void Type::finish() {
-//   auto iter = type_map.begin();
-//   for (; iter != type_map.end(); iter++) {
-//     delete iter->second;
-//   }
-//   type_map.clear();
-// }
-
-// std::string Type::to_string() {
-//   if (!valid) {
-//     return std::string("invalid type");
-//   } else {
-//     if (size < 4 && size >= 0)
-//       return basic_type_names[log2(size)][static_cast<int>(has_sign)];
-//     else
-//       return "";
-//   }
-// }
-
-// void Type::clear() {
-//     typeName.clear();
-//     piece_names.clear();
-//     pieces.clear();
-
-// int
-// Type::extract_struct_type(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Type *type){
-
-//     Dwarf_Error err;
-//     Dwarf_Bool has_type, is_info;
-//     Dwarf_Off type_off;
-//     int res;
-
-//     res = dwarf_hasattr(var_die, DW_AT_type, &has_type, &err);
-//     if(res!=DW_DLV_OK || !has_type){
-//         return -1;
-//     }
-
-//     res = dwarf_dietype_offset(var_die, &type_off, &err);
-//     SIMPLE_HANDLE_ERR(res)
-
-//     Dwarf_Die type_die, pointer_type_die, typedef_die;
-//     Dwarf_Half tag;
-
-//     res = dwarf_offdie_b(dbg, type_off, is_info, &type_die, &err);
-//     dwarf_tag(type_die, &tag, &err);
-
-//     if (tag==DW_TAG_pointer_type){
-//         // take pointee type
-//         pointer_type_die = type_die;
-//         res = dwarf_dietype_offset(var_die, &type_off, &err);
-//         SIMPLE_HANDLE_ERR(res)
-//         res = dwarf_offdie_b(dbg, type_off, is_info, &type_die, &err);
-//         SIMPLE_HANDLE_ERR(res)
-//         dwarf_tag(type_die, &tag, &err);
-//     }
-
-//     if (tag==DW_TAG_typedef){
-//         // try take real definition
-//         typedef_die = typedef_die;
-//         res = dwarf_dietype_offset(var_die, &type_off, &err);
-//         SIMPLE_HANDLE_ERR(res)
-//         res = dwarf_offdie_b(dbg, type_off, is_info, &type_die, &err);
-//         SIMPLE_HANDLE_ERR(res)
-//         dwarf_tag(type_die, &tag, &err);
-//     }
-
-//     if (tag != DW_TAG_structure_type){
-//         return 1;
-//     }
-
-//     // parse structural die
-//     Dwarf_Die member;
-//     res = dwarf_child(type_die, &member, &err);
-//     SIMPLE_HANDLE_ERR(res)
-
-//     type->clear();
-//     do{
-//         Dwarf_Attribute name_attr, loc_attr;
-//         res = dwarf_attr(member, DW_AT_name, &name_attr, &err);
-//         char *name = NULL;
-//         res = get_name(dbg, type_die, &name);
-
-//         type->piece_names.push_back(name ? string(name) : "");
-
-//         res = dwarf_attr(member, DW_AT_data_member_location, &loc_attr, &err);
-
-//         Dwarf_Half loc_form, version, offset_size;
-//         dwarf_whatform(loc_attr, &loc_form, &err);
-//         dwarf_get_version_of_die(type_die, &version, &offset_size);
-//         Dwarf_Form_Class loc_form_class = dwarf_get_form_class(version, DW_AT_data_member_location,
-//         offset_size, loc_form); if (loc_form_class == DW_FORM_CLASS_CONSTANT){
-//             Dwarf_Unsigned piece_start = get_const_u(loc_form, loc_attr, &err);
-
-//         }
-
-//     }while(dwarf_siblingof_b(dbg, member, is_info, &member, &err) == DW_DLV_OK);
-// }

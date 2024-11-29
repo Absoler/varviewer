@@ -3,6 +3,7 @@
 #include <libdwarf-0/libdwarf.h>
 #include <cassert>
 #include <cstddef>
+#include <list>
 #include <map>
 #include <memory>
 #include <string>
@@ -29,50 +30,48 @@ class StructType {
 
   inline auto GetStructSize() const -> size_t { return struct_size_; }
 
-  inline void SetStructSize(size_t size) { struct_size_ = size; }
+  inline void SetStructSize(Dwarf_Unsigned size) { struct_size_ = size; }
 
-  auto inline GetMemberOffset(const std::string &member_name) -> Dwarf_Unsigned {
-    VARVIEWER_ASSERT(member_names_.find(member_name) != member_names_.end(), "member not exists");
-    return member_offset_[member_name];
+  auto inline GetMemberOffsets() const -> const std::unordered_map<std::string, Dwarf_Unsigned> & {
+    return member_offsets_;
   }
 
   inline void SetMemberOffset(const std::string &member_name, Dwarf_Unsigned offset) {
-    VARVIEWER_ASSERT(member_offset_.find(member_name) == member_offset_.end(), "member already exists");
-    member_offset_[member_name] = offset;
+    VARVIEWER_ASSERT(member_offsets_.find(member_name) == member_offsets_.end(), "member already exists");
+    member_offsets_[member_name] = offset;
   }
 
-  inline auto GetMemberType(const std::string &member_name) -> std::shared_ptr<Type> {
-    VARVIEWER_ASSERT(member_offset_.find(member_name) != member_offset_.end(), "member not exists");
-    return member_type_[member_name];
+  inline auto GetMemberTypes() const -> const std::unordered_map<std::string, std::shared_ptr<Type>> & {
+    return member_types_;
   }
 
-  inline auto SetMemberType(const std::string &member_name, std::shared_ptr<Type> type) -> void {
-    VARVIEWER_ASSERT(member_type_.find(member_name) == member_type_.end(), "member already exists");
-    member_type_[member_name] = type;
+  inline void SetMemberType(const std::string &member_name, std::shared_ptr<Type> type) {
+    VARVIEWER_ASSERT(member_types_.find(member_name) == member_types_.end(), "member already exists");
+    member_types_[member_name] = type;
   }
+
+  inline auto GetMemberNames() const -> const std::unordered_set<std::string> & { return member_names_; }
 
   inline void InsertName(const std::string &name) {
     VARVIEWER_ASSERT(member_names_.find(name) == member_names_.end(), "member already exists");
     member_names_.insert(name);
   }
 
-  inline auto GetMemberNames() const -> const std::unordered_set<std::string> & { return member_names_; }
-
  private:
   /* struct name */
   std::string struct_name_;
 
   /* whole size */
-  size_t struct_size_;
+  Dwarf_Unsigned struct_size_;
 
   /* all the member names */
   std::unordered_set<std::string> member_names_;
 
   /* members name to offset in struct */
-  std::unordered_map<std::string, Dwarf_Unsigned> member_offset_;
+  std::unordered_map<std::string, Dwarf_Unsigned> member_offsets_;
 
   /* members name to type */
-  std::unordered_map<std::string, std::shared_ptr<Type>> member_type_;
+  std::unordered_map<std::string, std::shared_ptr<Type>> member_types_;
 };
 
 class Type {
@@ -89,7 +88,7 @@ class Type {
 
   inline auto GetTypeName() const -> std::string { return type_name_; }
 
-  inline auto GetTypeSize() const -> size_t { return size_; }
+  inline auto GetTypeSize() const -> Dwarf_Unsigned { return size_; }
 
   inline auto IsUserDefined() const -> bool { return user_defined_; }
 
@@ -99,9 +98,13 @@ class Type {
 
   inline auto GetMemberNames() const -> const std::unordered_set<std::string> & { return member_name_; }
 
-  inline auto GetMemberTypes() -> std::unordered_map<std::string, std::shared_ptr<Type>> & { return member_type_; }
+  inline auto GetMemberTypes() const -> const std::unordered_map<std::string, std::shared_ptr<Type>> & {
+    return member_type_;
+  }
 
-  inline auto GetMemberOffsets() -> std::unordered_map<std::string, Dwarf_Unsigned> & { return member_offset_; }
+  inline auto GetMemberOffsets() const -> const std::unordered_map<std::string, Dwarf_Unsigned> & {
+    return member_offset_;
+  }
 
   inline void InsertName(const std::string &name) {
     VARVIEWER_ASSERT(member_name_.find(name) == member_name_.end(), "member already exists");
@@ -122,13 +125,16 @@ class Type {
 
  private:
   /* record struct info */
-  static std::vector<std::shared_ptr<StructType>> struct_infos_;
+  static std::list<std::shared_ptr<StructType>> struct_infos_;
+
+  /* record name to the list itet above , used to seach in o(1) */
+  static std::unordered_map<std::string, std::list<std::shared_ptr<StructType>>::iterator> struct_name_to_iter_;
 
   /* real parse logic */
   auto static ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level)
       -> std::shared_ptr<Type>;
 
-  /*type name*/
+  /* type name */
   std::string type_name_;
 
   /* size */
@@ -149,7 +155,7 @@ class Type {
   /* whether pointer */
   bool is_pointer_{false};
 
-  /*pointer level*/
+  /* pointer level */
   size_t pointer_level_{0};
 };
 }  // namespace varviewer

@@ -445,7 +445,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   varviewer::testFDE(dbg, printFDE);
-  printf("--- parsing frame info done ---\n");
+  printf("\033[1;34m--- parsing frame info done ---\033[0m\n");
 
   if (useJson) {
     jsonOut << "[\n";
