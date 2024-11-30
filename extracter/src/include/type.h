@@ -78,7 +78,8 @@ class Type {
  public:
   Type() = default;
 
-  Type(std::string &&type_name, size_t size, const bool &user_defined, const bool &is_pointer, size_t level);
+  Type(const std::string &type_name, const Dwarf_Unsigned &size, const bool &user_defined, const bool &is_pointer,
+       const size_t &level);
 
   Type(const Type &type);
 
@@ -125,10 +126,7 @@ class Type {
 
  private:
   /* record struct info */
-  static std::list<std::shared_ptr<StructType>> struct_infos_;
-
-  /* record name to the list itet above , used to seach in o(1) */
-  static std::unordered_map<std::string, std::list<std::shared_ptr<StructType>>::iterator> struct_name_to_iter_;
+  static std::unordered_map<std::string, std::shared_ptr<StructType>> struct_infos_;
 
   /* real parse logic */
   auto static ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level)

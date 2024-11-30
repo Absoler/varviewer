@@ -4,8 +4,6 @@
 #include <libdwarf-0/libdwarf.h>
 #include <cstddef>
 #include <iostream>
-#include <iterator>
-#include <list>
 #include <memory>
 #include <unordered_map>
 #include "include/util.h"
@@ -15,12 +13,11 @@ StructType::StructType(std::string &&struct_name, size_t struct_size)
     : struct_name_(std::move(struct_name)), struct_size_(struct_size) {}
 
 /* static member must init out of class */
-std::list<std::shared_ptr<StructType>> Type::struct_infos_;
+std::unordered_map<std::string, std::shared_ptr<StructType>> Type::struct_infos_;
 
-std::unordered_map<std::string, std::list<std::shared_ptr<StructType>>::iterator> Type::struct_name_to_iter_;
-
-Type::Type(std::string &&type_name, size_t size, const bool &user_defined, const bool &is_pointer, size_t pointer_level)
-    : type_name_(std::move(type_name)),
+Type::Type(const std::string &type_name, const Dwarf_Unsigned &size, const bool &user_defined, const bool &is_pointer,
+           const size_t &pointer_level)
+    : type_name_(type_name),
       size_(size),
       user_defined_(user_defined),
       is_pointer_(is_pointer),
@@ -133,16 +130,30 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
   } else {
     return nullptr;
   }
+  std::string type_name_str(type_name);
   if (tag == DW_TAG_base_type) {
-    auto new_type = std::make_shared<Type>(std::string(type_name), byte_size, false, is_pointer, level);
+    auto new_type = std::make_shared<Type>(type_name_str, byte_size, false, is_pointer, level);
     return new_type;
   } else {
     /* user defined struct */
-    auto new_type = std::make_shared<Type>(std::string(type_name), byte_size, true, is_pointer, level);
-    /* it : (struct name, std::list<std::shared_ptr<StructType>>::iterator) */
-    auto it = struct_name_to_iter_.find(std::string(type_name));
-    if (it != struct_name_to_iter_.end()) {
-      auto &struct_ptr = *(it->second);
+    auto new_type = std::make_shared<Type>(type_name_str, byte_size, true, is_pointer, level);
+
+    /*
+    if the struct has not been record, tells that the struct member type die is defined
+    behind the current struct
+    for example,
+    struct A;
+    struct B{struct A * sa_;};
+    struct A{int a_;};
+    in this situation, the A die in dwarf will behind B, so when parse B's member
+    sa_, there has not a record, so here we need to parse the A struct first
+    */
+    if (struct_infos_.count(type_name_str) == 0U) {
+      ParseStructType(dbg, type_die);
+    }
+    auto it = struct_infos_.find(type_name_str);
+    if (it != struct_infos_.end()) {
+      auto &struct_ptr = it->second;
       new_type->member_name_ = struct_ptr->GetMemberNames();
       new_type->member_type_ = struct_ptr->GetMemberTypes();
       new_type->member_offset_ = struct_ptr->GetMemberOffsets();
@@ -173,6 +184,10 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
   char *name;
   int res;
   res = get_name(dbg, struct_die, &name);
+  if (struct_infos_.count(std::string(name)) != 0U) {
+    std::cout << "Struct " << name << " has been recorded\n";
+    return;
+  }
   if (res == DW_DLV_OK) {
     printf("struct name: %s;", name);
     struct_info->SetStructName(std::string(name));
@@ -201,7 +216,7 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
     /* get member name */
     char *member_name;
     res = get_name(dbg, child_die, &member_name);
-
+    std::string member_name_str(member_name);
     /* get the member offser in struct */
     Dwarf_Unsigned offset_in_struct;
     res = dwarf_formudata(offset_attr, &offset_in_struct, &err);
@@ -212,16 +227,15 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
     auto type_info = Type::ParseTypeDie(dbg, child_die);
 
     /* save */
-    struct_info->SetMemberOffset(std::string(member_name), offset_in_struct);
-    struct_info->SetMemberType(std::string(member_name), type_info);
-    struct_info->InsertName(std::string(member_name));
+    struct_info->SetMemberOffset(member_name_str, offset_in_struct);
+    struct_info->SetMemberType(member_name_str, type_info);
+    struct_info->InsertName(member_name_str);
 
     /* get next sibling */
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
   /* save struct and iter */
-  struct_infos_.push_back(struct_info);
-  struct_name_to_iter_[struct_info->GetStructName()] = std::prev(struct_infos_.end());
+  struct_infos_[struct_info->GetStructName()] = struct_info;
   std::cout << " struct " << struct_info->GetStructName() << " saved\n";
   dwarf_dealloc_attribute(offset_attr);
 }
