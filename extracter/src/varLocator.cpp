@@ -9,8 +9,10 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <ostream>
 #include <string>
 #include "include/Address.h"
+#include "include/jsonUtil.h"
 #include "include/type.h"
 #include "include/util.h"
 
@@ -101,44 +103,66 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
 
     /* for every member of the struct, output the a addr json( if has ) */
     if (type_info && type_info->IsUserDefined()) {
-      const auto &members = type_info->GetMemberNames();
-      for (const auto &member_name : members) {
-        /* copy the struct's and add offset */
-        Address member_addr = addr;
-        /* if is not pointer, add the struct name to the member name using "." */
-        if (!type_info->IsPointer()) {
-          member_addr.name_ = addr.name_ + "." + member_name;
-        } else {
-          /* Handle pointer dereferencing levels with parentheses */
-          std::string pointer_prefix = addr.name_;
-          size_t pointer_level = type_info->GetPointerLevel();
-          for (size_t i = 0; i < pointer_level; ++i) {
-            /* Add '*' with parentheses around each dereference */
-            pointer_prefix = "*(" + pointer_prefix + ")";
-          }
-          /* add '->' */
-          member_addr.name_ = pointer_prefix + "->" + member_name;
-        }
-        for (auto &addr_exp : member_addr.addrs_) {
-          addr_exp.offset_ += type_info->GetMemberOffsets().at(member_name);
-        }
-        /* get the member type */
-        member_addr.type_info_ = type_info->GetMemberTypes().at(member_name);
-
-        /* output */
-        json memberJson = createJsonforAddress(member_addr);
-        std::string memberJsonStr = memberJson.dump(4);
-        memberJson.clear();
-        jsonOut << ",\n";
-        jsonOut << memberJsonStr;
-        jsonOut.flush();
-      }
+      OutputJsonForMembers(addr, addr.type_info_);
     }
   } else {
     addr.Output();
   }
   dwarf_dealloc_attribute(location_attr);
   return 0;
+}
+
+/**
+ * @brief
+         given a addr which type info is user defined, create a member
+         addr for its every members, and because of members can be also
+         user defined, it that case, need to recursively handle
+         eg: a->b->c ...
+ * @param addr
+          the struct's address object
+ * @param type_info
+          the struct's type info
+ */
+void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type_info) {
+  if (type_info == nullptr || !type_info->IsUserDefined()) {
+    return;
+  }
+  const auto &members = type_info->GetMemberNames();
+  for (const auto &member_name : members) {
+    /* copy the struct's and add offset */
+    Address member_addr = addr;
+    /* if is not pointer, add the struct name to the member name using "." */
+    if (!type_info->IsPointer()) {
+      member_addr.name_ = addr.name_ + "." + member_name;
+    } else {
+      /* Handle pointer dereferencing levels with parentheses */
+      std::string pointer_prefix = addr.name_;
+      size_t pointer_level = type_info->GetPointerLevel();
+      for (size_t i = 1; i < pointer_level; ++i) {
+        /* Add '*' with parentheses around each dereference */
+        pointer_prefix = "*(" + pointer_prefix + ")";
+      }
+      /* add '->' */
+      member_addr.name_ = pointer_prefix + "->" + member_name;
+    }
+    for (auto &addr_exp : member_addr.addrs_) {
+      addr_exp.offset_ += type_info->GetMemberOffsets().at(member_name);
+    }
+    /* get the member type */
+    member_addr.type_info_ = type_info->GetMemberTypes().at(member_name);
+
+    /* output */
+    json memberJson = createJsonforAddress(member_addr);
+    std::string memberJsonStr = memberJson.dump(4);
+    memberJson.clear();
+    jsonOut << ",\n";
+    jsonOut << memberJsonStr;
+    jsonOut.flush();
+    /* if member is also struct, recur */
+    if (member_addr.type_info_ && member_addr.type_info_->IsUserDefined()) {
+      OutputJsonForMembers(member_addr, member_addr.type_info_);
+    }
+  }
 }
 
 int TestDeclPos(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, char **decl_file_name, Dwarf_Unsigned *decl_row,
