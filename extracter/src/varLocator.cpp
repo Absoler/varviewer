@@ -10,6 +10,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include "include/Address.h"
 #include "include/type.h"
 #include "include/util.h"
 
@@ -69,7 +70,6 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
   evaluator.dbg_ = dbg;
   /* range use to pass the start pc and end pc of the sub_program which contain the variable */
 
-  // TODO(tangc) : add a address to the struct member for each
   Address addr = evaluator.ReadLocation(location_attr, loc_form, range);
   if (addr.valid_ == false) {
     return 1;
@@ -97,11 +97,46 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
     }
     jsonOut << jsonStr;
     jsonOut.flush();
+    // TODO(tangc) : add a address to the struct member for each
 
+    /* for every member of the struct, output the a addr json( if has ) */
+    if (type_info && type_info->IsUserDefined()) {
+      const auto &members = type_info->GetMemberNames();
+      for (const auto &member_name : members) {
+        /* copy the struct's and add offset */
+        Address member_addr = addr;
+        /* if is not pointer, add the struct name to the member name using "." */
+        if (!type_info->IsPointer()) {
+          member_addr.name_ = addr.name_ + "." + member_name;
+        } else {
+          /* Handle pointer dereferencing levels with parentheses */
+          std::string pointer_prefix = addr.name_;
+          size_t pointer_level = type_info->GetPointerLevel();
+          for (size_t i = 0; i < pointer_level; ++i) {
+            /* Add '*' with parentheses around each dereference */
+            pointer_prefix = "*(" + pointer_prefix + ")";
+          }
+          /* add '->' */
+          member_addr.name_ = pointer_prefix + "->" + member_name;
+        }
+        for (auto &addr_exp : member_addr.addrs_) {
+          addr_exp.offset_ += type_info->GetMemberOffsets().at(member_name);
+        }
+        /* get the member type */
+        member_addr.type_info_ = type_info->GetMemberTypes().at(member_name);
+
+        /* output */
+        json memberJson = createJsonforAddress(member_addr);
+        std::string memberJsonStr = memberJson.dump(4);
+        memberJson.clear();
+        jsonOut << ",\n";
+        jsonOut << memberJsonStr;
+        jsonOut.flush();
+      }
+    }
   } else {
     addr.Output();
   }
-
   dwarf_dealloc_attribute(location_attr);
   return 0;
 }

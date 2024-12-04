@@ -13,23 +13,28 @@
 #include <string>
 
 namespace varviewer {
-/* expression compression may cause problem to match with vex ir
- */
+/*
+expression compression may cause problem to match with vex ir
+*/
 bool no_compress = true;
 
-Expression Expression::CreateEmpty() {
-  Expression res;
-  res.empty_ = true;
-  return res;
+/* copy constructor */
+Expression::Expression(const Expression &exp) {
+  valid_ = exp.valid_;
+  memcpy(reg_scale_, exp.reg_scale_, sizeof(reg_scale_));
+  offset_ = exp.offset_;
+  /* deep copy for shared_ptr */
+  mem_ = exp.mem_ ? std::make_shared<Expression>(*exp.mem_) : nullptr;
+  mem_size_ = exp.mem_size_;
+  sign_ = exp.sign_;
+  hasChild_ = exp.hasChild_;
+  sub1_ = exp.sub1_ ? std::make_shared<Expression>(*exp.sub1_) : nullptr;  
+  sub2_ = exp.sub2_ ? std::make_shared<Expression>(*exp.sub2_) : nullptr;  
+  op_ = exp.op_;
+  isCFA_ = exp.isCFA_;
 }
 
-Expression Expression::CreateCFA() {
-  Expression res;
-  res.isCFA_ = true;
-  res.sign_ = true;
-  return res;
-}
-
+/* defauly constructor */
 Expression::Expression()
     : valid_(true),
       offset_(0),
@@ -51,6 +56,19 @@ Expression::Expression(Dwarf_Signed _val_s) {
   Reset();
   offset_ = static_cast<Dwarf_Unsigned>(_val_s);
   sign_ = true;
+}
+
+Expression Expression::CreateEmpty() {
+  Expression res;
+  res.empty_ = true;
+  return res;
+}
+
+Expression Expression::CreateCFA() {
+  Expression res;
+  res.isCFA_ = true;
+  res.sign_ = true;
+  return res;
 }
 
 bool Expression::Equal(const Expression &other) {

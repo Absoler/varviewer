@@ -17,13 +17,15 @@ namespace varviewer {
 enum class DwarfType { MEMORY, REGISTER, VALUE };
 
 /*
-特定的地址表达式，继承自Expression
+certain locotion expression
 */
 class AddressExp : public Expression {
  public:
   AddressExp() = default;
 
   AddressExp(DwarfType type);
+
+  AddressExp(const AddressExp &addrexp) = default;
 
   // no reset startpc and endpc now
   void ResetData();
@@ -71,6 +73,8 @@ class Address {
   Address() = default;
 
   Address(DwarfType _type);
+
+  Address(const Address &address) = default;
 
   void Output();
 

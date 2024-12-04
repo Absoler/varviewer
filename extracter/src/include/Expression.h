@@ -24,11 +24,13 @@ class Expression {
  public:
   Expression();
 
+  Expression(const Expression &exp);
+
   ~Expression() = default;
 
-  Expression(Dwarf_Unsigned val_u);
+  explicit Expression(Dwarf_Unsigned val_u);
 
-  Expression(Dwarf_Signed val_s);
+  explicit Expression(Dwarf_Signed val_s);
 
   static Expression CreateEmpty();
 
@@ -58,27 +60,27 @@ class Expression {
 
   /* error when generating this */
   bool valid_{true};
+
   /* optimized away by compiler */
   bool empty_{false};
+
   /* indicate whether signed */
   bool sign_{true};
-  /*
-    the value of `Expression` is val + reg0 * reg_scale[0] + reg1 * reg_scale[1] ... + *(mem)
-  */
+
+  /*the value of `Expression` is val + reg0 * reg_scale[0] + reg1 * reg_scale[1] ... + *(mem)*/
   Dwarf_Signed reg_scale_[REG_END];
-  /* 对于全局变量 ，offset就是它的地址 */
+
+  /* for global variable, offset_ is its address */
   Dwarf_Unsigned offset_;
 
   std::shared_ptr<Expression> mem_;
 
   Dwarf_Small mem_size_ = 0;
-  /*
-      if true, then this expression is the currenet cfa value
-  */
+  
+  /* if true, then this expression is the currenet cfa value */
   bool isCFA_{false};
-  /*
-      operation can't express inside one expression will expand a single expression node to a binary tree
-  */
+  
+  /* operation can't express inside one expression will expand a single expression node to a binary tree */
   std::shared_ptr<Expression> sub1_{nullptr}, sub2_{nullptr};
 
   Dwarf_Small op_;

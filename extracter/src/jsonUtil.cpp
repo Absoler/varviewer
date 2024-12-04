@@ -184,7 +184,7 @@ json createJsonForType(const std::shared_ptr<Type> &type) {
     for (const auto &name : member_names) {
       Dwarf_Unsigned offset = member_offsets.at(name);
       nlohmann::json member_info = nlohmann::json::object();
-      member_info["name"] = name;
+      member_info["memberName"] = name;
       auto type_info = member_types.at(name);
       /* recur */
       member_info["type"] = createJsonForType(type_info);

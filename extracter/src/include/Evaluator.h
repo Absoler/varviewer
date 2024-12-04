@@ -12,7 +12,7 @@
 namespace varviewer {
 enum class ArgType { ArgVarType, ArgBlockType };
 
-// 简单的变量类型
+// simple variable 
 struct ArgVar {
   ArgVar(const Range &range, Dwarf_Half loc_form) : range_(range), loc_form_(loc_form) {}
   Range range_;
@@ -27,9 +27,9 @@ struct ArgBlock {
 
 class ArgLocation {
  public:
-  //构造argvar
+  /* construct argvar*/
   ArgLocation(const Range &range, Dwarf_Half loc_form);
-  //构造argblk
+  /* construct argblk */
   ArgLocation(const Range &range, bool print);
   union {
     ArgVar argvar;
