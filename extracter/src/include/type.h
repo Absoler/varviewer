@@ -16,64 +16,6 @@ namespace varviewer {
 // <piece_start, piece_size>
 using piece_type = std::pair<Dwarf_Addr, int>;
 
-class Type;
-
-class StructType {
- public:
-  StructType() = default;
-
-  StructType(std::string &&struct_name, size_t struct_size);
-
-  inline auto GetStructName() const -> std::string { return struct_name_; }
-
-  inline void SetStructName(std::string &&name) { struct_name_ = std::move(name); }
-
-  inline auto GetStructSize() const -> size_t { return struct_size_; }
-
-  inline void SetStructSize(Dwarf_Unsigned size) { struct_size_ = size; }
-
-  auto inline GetMemberOffsets() const -> const std::unordered_map<std::string, Dwarf_Unsigned> & {
-    return member_offsets_;
-  }
-
-  inline void SetMemberOffset(const std::string &member_name, Dwarf_Unsigned offset) {
-    VARVIEWER_ASSERT(member_offsets_.find(member_name) == member_offsets_.end(), "member already exists");
-    member_offsets_[member_name] = offset;
-  }
-
-  inline auto GetMemberTypes() const -> const std::unordered_map<std::string, std::shared_ptr<Type>> & {
-    return member_types_;
-  }
-
-  inline void SetMemberType(const std::string &member_name, std::shared_ptr<Type> type) {
-    VARVIEWER_ASSERT(member_types_.find(member_name) == member_types_.end(), "member already exists");
-    member_types_[member_name] = type;
-  }
-
-  inline auto GetMemberNames() const -> const std::unordered_set<std::string> & { return member_names_; }
-
-  inline void InsertName(const std::string &name) {
-    VARVIEWER_ASSERT(member_names_.find(name) == member_names_.end(), "member already exists");
-    member_names_.insert(name);
-  }
-
- private:
-  /* struct name */
-  std::string struct_name_;
-
-  /* whole size */
-  Dwarf_Unsigned struct_size_;
-
-  /* all the member names */
-  std::unordered_set<std::string> member_names_;
-
-  /* members name to offset in struct */
-  std::unordered_map<std::string, Dwarf_Unsigned> member_offsets_;
-
-  /* members name to type */
-  std::unordered_map<std::string, std::shared_ptr<Type>> member_types_;
-};
-
 class Type {
  public:
   Type() = default;
@@ -126,7 +68,7 @@ class Type {
 
  private:
   /* record struct info */
-  static std::unordered_map<std::string, std::shared_ptr<StructType>> struct_infos_;
+  static std::unordered_map<std::string, std::shared_ptr<Type>> struct_infos_;
 
   /* real parse logic */
   auto static ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level)
@@ -138,7 +80,7 @@ class Type {
   /* size */
   Dwarf_Unsigned size_;
 
-  /* whether user-defined*/
+  /* whether user-defined */
   bool user_defined_;
 
   /*if user-defined struct, record the members name */

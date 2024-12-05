@@ -6,14 +6,12 @@
 #include <iostream>
 #include <memory>
 #include <unordered_map>
+#include <utility>
 #include "include/util.h"
 namespace varviewer {
 
-StructType::StructType(std::string &&struct_name, size_t struct_size)
-    : struct_name_(std::move(struct_name)), struct_size_(struct_size) {}
-
 /* static member must init out of class */
-std::unordered_map<std::string, std::shared_ptr<StructType>> Type::struct_infos_;
+std::unordered_map<std::string, std::shared_ptr<Type>> Type::struct_infos_;
 
 Type::Type(const std::string &type_name, const Dwarf_Unsigned &size, const bool &user_defined, const bool &is_pointer,
            const size_t &pointer_level)
@@ -180,7 +178,7 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
   Dwarf_Bool has_byte_size = true;
   Dwarf_Die child_die;
   Dwarf_Attribute offset_attr;
-  auto struct_info = std::make_shared<StructType>();
+  auto struct_type_info = std::make_shared<Type>();
   char *name;
   int res;
   res = get_name(dbg, struct_die, &name);
@@ -190,7 +188,7 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
   }
   if (res == DW_DLV_OK) {
     printf("struct name: %s;", name);
-    struct_info->SetStructName(std::string(name));
+    struct_type_info->type_name_ = std::string(name);
   }
 
   res = dwarf_hasattr(struct_die, DW_AT_byte_size, &has_byte_size, &err);
@@ -201,8 +199,7 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
   if (res != DW_DLV_OK) {
     return;
   }
-  struct_info->SetStructSize(byte_size);
-
+  struct_type_info->size_ = byte_size;
   if (dwarf_child(struct_die, &child_die, &err) != DW_DLV_OK) {
     /* has no member */
     return;
@@ -224,19 +221,19 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
     printf("struct member offset : %llu;", offset_in_struct);
 
     /* get the meber type info */
-    auto type_info = Type::ParseTypeDie(dbg, child_die);
+    auto member_type_info = Type::ParseTypeDie(dbg, child_die);
 
     /* save */
-    struct_info->SetMemberOffset(member_name_str, offset_in_struct);
-    struct_info->SetMemberType(member_name_str, type_info);
-    struct_info->InsertName(member_name_str);
+    struct_type_info->SetMemberOffset(member_name_str, offset_in_struct);
+    struct_type_info->SetMemberType(member_name_str, member_type_info);
+    struct_type_info->InsertName(member_name_str);
 
     /* get next sibling */
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
-  /* save struct and iter */
-  struct_infos_[struct_info->GetStructName()] = struct_info;
-  std::cout << " struct " << struct_info->GetStructName() << " saved\n";
+  /* save struct info */
+  struct_infos_[struct_type_info->GetTypeName()] = struct_type_info;
+  std::cout << " struct " << struct_type_info->GetTypeName() << " saved\n";
   dwarf_dealloc_attribute(offset_attr);
 }
 }  // namespace varviewer
