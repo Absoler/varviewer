@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+import string
 from z3 import *
 from util import *
 from iced_x86 import *
@@ -61,7 +62,14 @@ def setpos(z3Expr:ExprRef, pos:MatchPosition = MatchPosition.invalid):
 '''
 def get_address_str_of_insn(insn:Instruction) -> str:
     # `disp`
-    res = f"{insn.memory_displacement}"
+    # treat memory_displacement as int, to ensure it's correctly handled
+    displacement = int(insn.memory_displacement)
+    
+    # if displacement >= 2**63, it means it's a negative number(because 2**64 is unsigned, and if it's larger than 2**63, it's negative)
+    if displacement >= 2**63:
+        displacement -= 2**64  # convert to negative number
+    
+    res = f"{displacement}"
     if not insn.is_ip_rel_memory_operand:
         # `disp + baseReg`
         res += f" + ${register_to_str[insn.memory_base].lower()}" if insn.memory_base != Register.NONE else ""
@@ -88,9 +96,10 @@ def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
         return ""
 
 class Result:
-    def __init__(self, name:str, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, detailedDwarfType:DetailedDwarfType, irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
-        self.addr:int = addr
+    def __init__(self, name:str, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, detailedDwarfType:DetailedDwarfType,typeName:string,typeSize:int,varType:string,isPointer:bool,pointLevel:int ,irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
         self.name:str = name
+        self.addr:int = addr
+        self.addrHex:str = hex(addr)
         self.matchPos:MatchPosition = matchPos
         ''' src_size is the size of src operand in instruction, we use it to cast dst value
             to src type, because:
@@ -116,9 +125,15 @@ class Result:
         '''
         self.uncertain:bool = False
 
+        # type info
+        self.typeName = typeName
+        self.typeSize = typeSize
+        self.varType = varType
+        self.isPointer = isPointer
+        self.pointLevel = pointLevel
     
     def keys(self):
-        return ('addr', 'name', 'matchPos', 'indirect', 'dwarfType', 'detailedDwarfType', 'offset', 'expression', 'uncertain')
+        return ('addr','addrHex','name', 'matchPos', 'indirect', 'dwarfType', 'detailedDwarfType', 'offset', 'expression', 'uncertain',"typeName","typeSize","varType","isPointer","pointLevel","pointLevel")
     
     def __getitem__(self, item):
         if item == "matchPos":
@@ -145,6 +160,7 @@ class Result:
 
         '''
         
+        # operation code,eg: MOV, ADD, SUB
         code_str = code_to_str[insn.code]
         src_ind, dst_ind = 1, 0
         if code_str.startswith("PUSH"):
@@ -170,7 +186,7 @@ class Result:
             self.addOffset()
             return True
                 
-
+        # if matchPos is `dst_addr` or `dst_value`
         if isDestPos(self.matchPos):
 
             if self.matchPos == MatchPosition.dst_addr:
@@ -184,7 +200,7 @@ class Result:
                     return False
                 self.expression = value
 
-
+        # if matchPos is `src_addr` or `src_value`
         else:
 
             if self.matchPos == MatchPosition.src_addr:

@@ -191,17 +191,23 @@ class Definition:
 
 class Analysis:
     def __init__(self, proj, cfg) -> None:
+        # map from address to irsb
         self.irsb_map:dict[int, pyvex.block.IRSB] = {}
-
+        # map from location to register facts, location -> reg_facts
         self.context_reg_map:dict[Location, RegFactSet] = {}
+        # input register facts, node -> reg_facts
         self.in_reg_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, RegFactSet] = {}
+        # output register facts, node -> reg_facts
         self.out_reg_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, RegFactSet] = {}
-
+        # temp relevance, node -> temp_fact
         self.temp_map:dict[angr.knowledge_plugins.cfg.cfg_node.CFGNode, TempFactBlock] = {}
-
+        
         self.def_mgr:Definition = Definition()
+        # angr project
         self.proj = proj
+        # angr cfg
         self.cfg:angr.analyses.cfg.cfg_fast.CFGFast = cfg
+        # address list
         self.addr_list:list[int] = []
 
     def clear(self):
@@ -361,21 +367,24 @@ class Analysis:
         
         nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(self.cfg.graph.nodes)
         for node in nodes:
+            # initialize reg_facts
             self.in_reg_map[node] = RegFactSet()
             self.out_reg_map[node] = RegFactSet()
-
             self.temp_map[node] = TempFactBlock()
-
+            # if has block, record irsb
             if node.block:
                 blk:angr.block.Block = self.proj.factory.block(node.addr, opt_level=0)
+                # get the irsb of the block, map from address to irsb
                 self.irsb_map[node.addr] = blk.vex
                 self.def_mgr.setBlock(self.irsb_map[node.addr])
                 self.addr_list.extend(blk.instruction_addrs)
         
-        # print(f"{len(nodes)} nodes in total")
-        loopCnt = 0
-
-        change = True
+        print(f"{len(nodes)} nodes in total")
+        
+        
+        # data flow analysis, about register definition
+        change:bool = True
+        loopCnt:int = 0
         while change:
             change = False
             for node in nodes:
@@ -384,11 +393,11 @@ class Analysis:
                     self.in_reg_map[node].meet(self.out_reg_map[pred])
                 change = self.analyzeBlock_regDef(node) or change
             loopCnt += 1
+        print(f"reg definition loop {loopCnt}")
         
-        print(f"reg loop {loopCnt}")
-        
-        change = True
-        loopCnt = 0
+        # data flow analysis, about temp variable relevance
+        change:bool = True
+        loopCnt:int = 0
         while change:
             change = False
             for node in nodes:
@@ -397,8 +406,9 @@ class Analysis:
             if loopCnt > 20:
                 break
     
-        print(f"temp loop {loopCnt}")
-
+        print(f"temp variable loop {loopCnt}")
+        
+        # remove duplicate and sort
         self.addr_list = list(set(self.addr_list))
         self.addr_list.sort()
 
@@ -831,7 +841,7 @@ class Analysis:
                         vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
                         dwarf_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in dwarf_regs}
                         if vex_regs_sizeNames == dwarf_regs_sizeNames and not has_load(vex_expr) and not has_offset(vex_expr):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType, irsb.addr, i))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level, irsb.addr, i))
                         continue
 
                     # conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
@@ -842,13 +852,13 @@ class Analysis:
                     if dwarf_expr != None:
                         offset = compare_exps(vex_expr, dwarf_expr, conds, useOffset)
                         if check_offset(offset, 0):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                     if dwarf_addr != None:
                         offset = compare_exps(vex_expr, dwarf_addr, conds, useOffset)
                         if check_offset(offset, -1):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, detailedDwarfType, irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                 
