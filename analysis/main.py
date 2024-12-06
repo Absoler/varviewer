@@ -40,20 +40,19 @@ if __name__ == "__main__":
     checkFilter = Filter(args.filterPrefix, args.filterAddressPath)
     
     # prepare disassembly
-    binFile = open(binPath, "rb")
-    elf = ELFFile(binFile)
-    text = elf.get_section_by_name(".text")
-    code_addr = text['sh_addr']
-    code = text.data()
-    if len(code) == 0:
-        code = text.stream.read()
-        print("text.data() failed", file=sys.stderr)
+    with open (binPath, "rb") as binFile:
+        elf = ELFFile(binFile)
+        text = elf.get_section_by_name(".text")
+        code_addr = text['sh_addr']
+        code = text.data()
+        if len(code) == 0:
+            code = text.stream.read()
+            print("text.data() failed", file=sys.stderr)
 
-    decoder = Decoder(64, code, ip=code_addr)
-    all_insts:list[Instruction] = []
-    for ins in decoder:
-        all_insts.append(ins)
-
+        decoder = Decoder(64, code, ip=code_addr)
+        all_insts:list[Instruction] = []
+        for ins in decoder:
+            all_insts.append(ins)
 
     # prepare dwarf info
     mgr.load(jsonPath)
@@ -70,14 +69,15 @@ if __name__ == "__main__":
 
     print(f"preparations time: {time.time() - beginTime}s")
     
+    
     # start analysis
-
     all_reses = []
     showTime:bool = args.showTime
     
     ''' number of processed addrExps
     '''
     count, matchCount = 0, 0
+    print("mgr local ind", mgr.local_ind)
     for piece_num in range(mgr.local_ind, len(mgr.vars)):
         
         startTime = time.time()
@@ -93,16 +93,16 @@ if __name__ == "__main__":
 
         ''' filter imme out
         '''
-        if addrExp.is_const() or addrExp.empty:
+        if  addrExp.empty:
             continue
 
         ''' filter uncare addrExp out
         '''
         if not checkFilter.valid(addrExp):
+            print("not valid")
             continue
-
+        
         startpc, endpc = addrExp.startpc, addrExp.endpc
-
         if not useCache or not os.path.exists(piece_name):     
             l, r = find_l_ind(all_insts, startpc), find_l_ind(all_insts, endpc)
             if l==r:
@@ -145,6 +145,7 @@ if __name__ == "__main__":
         cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
         analysis = Analysis(proj, cfg)
         analysis.analyzeCFG()
+        print("\033[31mcfg analysis done\033[0m")
         if args.dumpVex:
             analysis.dumpVex(piece_name + ".vex")
 
@@ -155,7 +156,7 @@ if __name__ == "__main__":
         ''' try match
         '''
         try:
-            reses = analysis.match(addrExp, DwarfType(addrExp.dwarfType), piece_addrs, args.useOffset, showTime)
+            reses:list[Result] = analysis.match(addrExp, DwarfType(addrExp.dwarfType), piece_addrs, args.useOffset, showTime)
         except Exception as e:
             print(f"exception {e} in matching")
 

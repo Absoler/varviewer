@@ -5,13 +5,19 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include "include/util.h"
 namespace varviewer {
 
 /* static member must init out of class */
-std::unordered_map<std::string, std::shared_ptr<Type>> Type::struct_infos_;
+std::unordered_map<std::string, std::shared_ptr<Type>> Type::struct_infos_ =
+    []() -> std::unordered_map<std::string, std::shared_ptr<Type>> {
+  std::unordered_map<std::string, std::shared_ptr<Type>> ret;
+  ret.reserve(100);
+  return ret;
+}();
 
 Type::Type(const std::string &type_name, const Dwarf_Unsigned &size, const bool &user_defined, const bool &is_pointer,
            const size_t &pointer_level)

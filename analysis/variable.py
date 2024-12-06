@@ -388,7 +388,8 @@ class AddressExp(Expression):
         ind = bisect_right(self.cfa_pcs, addr, 0, len(self.cfa_pcs)) - 1
         cfa:Expression = Expression(self.cfa_values[ind])
         for child in children:
-            if child.isCFA:
+            # I think here does not need to check isCFA
+            # if child.isCFA:
                 out_offset = child.offset
                 child.setExprFrom(cfa)
                 child.offset += out_offset
@@ -441,7 +442,7 @@ class VarMgr:
             self.addrs = json.loads(f.read())
         
         
-
+        print("num of addrs : ",len(self.addrs))
         for addr in self.addrs:
             if "addrExps" not in addr:
                 continue
@@ -452,7 +453,22 @@ class VarMgr:
                 var.name = addr["name"]
                 var.decl_file = addr["decl_file"]
                 var.decl_row = int(addr["decl_row"])
+                 # add type info 
+                if "type_info" in addr:
+                    var.type_name = addr["type_info"]["typeName"]
+                    var.type_size = int(addr["type_info"]["size"])
+                    var.user_defined = addr["type_info"]["userDefined"]
+                    if "." in var.name or "->" in var.name:
+                        var.var_type = "struct_member"
+                    elif var.user_defined:
+                        var.var_type = "struct"
+                    else:
+                        var.var_type = "builtin" 
+                    var.is_pointer = addr["type_info"]["isPointer"]
+                    var.pointer_level = addr["type_info"]["pointerLevel"]
                 self.vars.append(var)
+               
+
         
         print(f"load {path} done!", file=sys.stderr)
         

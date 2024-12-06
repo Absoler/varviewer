@@ -34,7 +34,6 @@ json createJsonforExpression(const Expression &exp) {
       }
   */
   nlohmann::json res;
-  std::cout << "exp.sign : " << std::boolalpha << exp.sign_ << "\n";
   if (exp.sign_) {
     res["offset"] = static_cast<Dwarf_Signed>(exp.offset_);
   } else {
