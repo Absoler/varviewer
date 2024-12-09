@@ -3,6 +3,7 @@ from bisect import bisect_right
 from functools import cmp_to_key
 import sys
 import json
+from typing import Any, Dict
 from iced_x86 import *
 from dwarf_iced_map import iced_dwarf_regMap, dwarf_iced_regMap, dwarf_reg_names
 import ctypes
@@ -464,6 +465,8 @@ class VarMgr:
                         var.var_type = "struct"
                     else:
                         var.var_type = "builtin" 
+                    
+                    var.members:Dict[int, Dict[str, Any]] = addr["type_info"]["members"] if "members" in addr["type_info"] else {}# type: ignore
                     var.is_pointer = addr["type_info"]["isPointer"]
                     var.pointer_level = addr["type_info"]["pointerLevel"]
                 self.vars.append(var)

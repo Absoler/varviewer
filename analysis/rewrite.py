@@ -26,7 +26,7 @@ def getBranch(ins:Instruction):
         '''
         return -1
 
-def construct(insts:list[Instruction], startpc:int, endpc:int) -> (str, list[int]):
+def construct(insts:list[Instruction], startpc:int, endpc:int) -> (str, list[int]):  # type: ignore
     length = sum([len(ins) for ins in insts])
     formatter = Formatter(FormatterSyntax.GAS)
     formatter.rip_relative_addresses = True

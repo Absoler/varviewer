@@ -70,7 +70,7 @@ def traverse(p:angr.Project, cfg:angr.analyses.cfg.cfg_fast.CFGFast, processIRSB
 
 
 
-
+# location consists of a node and the index in the node
 class Location:
     def __init__(self, node, ind) -> None:
         self.node:angr.knowledge_plugins.cfg.cfg_node.CFGNode = node
@@ -89,12 +89,14 @@ class Location:
 class RegFactSet:
     USEFUL_REG = 32
     def __init__(self) -> None:
-        ''' reg_facts[i] record the possible definition place(s) of register i
+        ''' 
+        reg_facts[i] record the possible definition place(s) of register i
         '''
         self.clear()
     
     def clear(self) -> None:
-        ''' location(s) of `put` a register
+        ''' 
+        location(s) of `put` a register
         '''
         self.reg_facts:list[set[Location]] = [set() for _ in range(self.USEFUL_REG)]
 
@@ -142,7 +144,8 @@ class RegFactSet:
             s += '\n'
         return s
     
-''' only record relevance with register(s)
+''' 
+only record relevance with register(s)
 '''
 TempFactType = NewType('TempFactType', set[str])
 class TempFactBlock:
@@ -177,6 +180,7 @@ class Definition:
     def setBlock(self, irsb:pyvex.IRSB):
         to_defs = {}
         for i, ir in enumerate(irsb.statements):
+            # write to a temp variable
             if isinstance(ir, pyvex.stmt.WrTmp):
                 to_defs[ir.tmp] = ir.data
         self.blockAddr_to_defs[irsb.addr] = to_defs
@@ -237,10 +241,12 @@ class Analysis:
         return set()
 
     def analyzeBlock_regDef(self, node:angr.knowledge_plugins.cfg.cfg_node.CFGNode) -> bool:
-        ''' register facts analysis part
+        ''' 
+        register facts analysis part
         '''
         if node.addr in self.irsb_map:
-            irsb = self.irsb_map[node.addr]
+            # get irsb of the address
+            irsb:pyvex.block.IRSB = self.irsb_map[node.addr]
         else:
             return False
         
@@ -250,6 +256,7 @@ class Analysis:
         out_result:RegFactSet = in_result.copy()
         
         for i, ir in enumerate(irsb.statements):
+            # Ist_Put: put a value into a register
             if ir.tag == 'Ist_Put':
                 if not is_useful_reg(ir.offset):
                     continue
@@ -359,12 +366,9 @@ class Analysis:
 
         return change
         
-                
-
 
 
     def analyzeCFG(self):
-        
         nodes:list[angr.knowledge_plugins.cfg.cfg_node.CFGNode] = list(self.cfg.graph.nodes)
         for node in nodes:
             # initialize reg_facts
@@ -381,7 +385,6 @@ class Analysis:
         
         print(f"{len(nodes)} nodes in total")
         
-        
         # data flow analysis, about register definition
         change:bool = True
         loopCnt:int = 0
@@ -393,6 +396,7 @@ class Analysis:
                     self.in_reg_map[node].meet(self.out_reg_map[pred])
                 change = self.analyzeBlock_regDef(node) or change
             loopCnt += 1
+
         print(f"reg definition loop {loopCnt}")
         
         # data flow analysis, about temp variable relevance
@@ -426,8 +430,7 @@ class Analysis:
 
     def dumpVex(self, path:str):
         with open(path, "w") as vexFile:
-            for addr in self.irsb_map:
-                irsb:pyvex.block.IRSB = self.irsb_map[addr]
+            for addr,irsb in self.irsb_map.items():
                 print(f"block addr {addr:X}", file=vexFile)
                 print(irsb._pp_str(), file=vexFile)
                 print("", file=vexFile)
@@ -841,7 +844,7 @@ class Analysis:
                         vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
                         dwarf_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in dwarf_regs}
                         if vex_regs_sizeNames == dwarf_regs_sizeNames and not has_load(vex_expr) and not has_offset(vex_expr):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level, irsb.addr, i))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,addrExp.user_defined,addrExp.members,irsb.addr, i))
                         continue
 
                     # conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
@@ -852,13 +855,13 @@ class Analysis:
                     if dwarf_expr != None:
                         offset = compare_exps(vex_expr, dwarf_expr, conds, useOffset)
                         if check_offset(offset, 0):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,addrExp.user_defined,addrExp.members,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                     if dwarf_addr != None:
                         offset = compare_exps(vex_expr, dwarf_addr, conds, useOffset)
                         if check_offset(offset, -1):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,addrExp.user_defined,addrExp.members,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                 

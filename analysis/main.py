@@ -60,7 +60,8 @@ if __name__ == "__main__":
     # prepare pieces
     tempPath = args.tempPath
     useCache = args.useCache
-    ''' if set `useCache`, means we have run this already
+    ''' 
+    if set `useCache`, means we have run this already
     '''
     if not useCache:
         if os.path.exists(tempPath):
@@ -71,10 +72,12 @@ if __name__ == "__main__":
     
     
     # start analysis
-    all_reses = []
+    # all result will be stored in all_reses
+    all_reses:list[Result] = []
     showTime:bool = args.showTime
     
-    ''' number of processed addrExps
+    ''' 
+    number of processed addrExps
     '''
     count, matchCount = 0, 0
     print("mgr local ind", mgr.local_ind)
@@ -91,17 +94,20 @@ if __name__ == "__main__":
         piece_name = tempPath + '/piece_' + str(piece_num)
         addrExp = mgr.vars[piece_num]
 
-        ''' filter imme out
+        ''' 
+        filter imme out
         '''
         if  addrExp.empty:
             continue
 
-        ''' filter uncare addrExp out
+        ''' 
+        filter uncare addrExp out
         '''
         if not checkFilter.valid(addrExp):
             print("not valid")
             continue
         
+        # according to the startpc and endpc, we can find the corresponding piece, and build to assembly code
         startpc, endpc = addrExp.startpc, addrExp.endpc
         if not useCache or not os.path.exists(piece_name):     
             l, r = find_l_ind(all_insts, startpc), find_l_ind(all_insts, endpc)
@@ -109,8 +115,10 @@ if __name__ == "__main__":
                 continue
             piece_asm, piece_addrs = construct(all_insts[l:r], startpc, endpc)
             with open(piece_name + ".S", "w") as piece_file:
+                # save asm code
                 piece_file.write(piece_asm)
             with open(piece_name + ".addr", "w") as piece_addr_file:
+                # save addrs
                 piece_addr_file.write(' '.join(map(str, piece_addrs)))
             ret = os.system(f"as {piece_name}.S -o {piece_name}.o && ld {piece_name}.o -Ttext 0 -o {piece_name}")
             if ret != 0:
@@ -122,13 +130,13 @@ if __name__ == "__main__":
         if args.onlyGen:
             continue
         
-        ''' piece generated,
-            start analysis
+        ''' 
+        piece generated, start analysis
         '''
-
         piece_file = open(piece_name, "rb")
-        piece_addr_file = open(piece_name + ".addr", "r")
-        piece_addrs = list(map(int, piece_addr_file.readline().split(' ')))
+        with open (piece_name + ".addr", "r") as piece_addr_file:
+            # read addrs and store in piece_addrs list
+            piece_addrs:list[int] = list(map(int, piece_addr_file.read().split(' ')))
 
         
         if showTime:
@@ -140,12 +148,14 @@ if __name__ == "__main__":
         if showTime:
             print(f"-- summary dwarf {time.time()-startTime}")
             startTime = time.time()
-
+        
+        # angr analysis and cfg
         proj = angr.Project(piece_file, load_options={'auto_load_libs' : False})
         cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
         analysis = Analysis(proj, cfg)
         analysis.analyzeCFG()
         print("\033[31mcfg analysis done\033[0m")
+        
         if args.dumpVex:
             analysis.dumpVex(piece_name + ".vex")
 

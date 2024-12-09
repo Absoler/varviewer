@@ -1,6 +1,7 @@
 import json
 from enum import Enum
 import string
+from typing import Any, Dict
 from z3 import *
 from util import *
 from iced_x86 import *
@@ -96,7 +97,7 @@ def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
         return ""
 
 class Result:
-    def __init__(self, name:str, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, detailedDwarfType:DetailedDwarfType,typeName:string,typeSize:int,varType:string,isPointer:bool,pointLevel:int ,irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
+    def __init__(self, name:str, addr:int, matchPos:MatchPosition, indirect:int, dwarfType:DwarfType, detailedDwarfType:DetailedDwarfType,typeName:string,typeSize:int,varType:string,isPointer:bool,pointLevel:int ,userDefined:bool,members:Dict[int, Dict[str, Any]],irsb_addr=0, ind=0, offset:int = 0, src_size:int = -1) -> None:
         self.name:str = name
         self.addr:int = addr
         self.addrHex:str = hex(addr)
@@ -130,11 +131,15 @@ class Result:
         self.typeSize = typeSize
         self.varType = varType
         self.isPointer = isPointer
-        self.pointLevel = pointLevel
-    
+        self.pointerLevel = pointLevel
+        self.userDefined = userDefined
+        self.members = members if userDefined else {}
+
+
     def keys(self):
-        return ('addr','addrHex','name', 'matchPos', 'indirect', 'dwarfType', 'detailedDwarfType', 'offset', 'expression', 'uncertain',"typeName","typeSize","varType","isPointer","pointLevel","pointLevel")
-    
+        return ('addr','addrHex','name', 'matchPos', 'indirect', 'dwarfType', 'detailedDwarfType', 'offset', 'expression', 'uncertain',"typeName","typeSize","varType","isPointer","pointerLevel","userDefined","members")
+
+     
     def __getitem__(self, item):
         if item == "matchPos":
             return self.matchPos.value
