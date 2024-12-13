@@ -15,7 +15,7 @@ namespace varviewer {
 std::unordered_map<std::string, std::shared_ptr<Type>> Type::struct_infos_ =
     []() -> std::unordered_map<std::string, std::shared_ptr<Type>> {
   std::unordered_map<std::string, std::shared_ptr<Type>> ret;
-  ret.reserve(100);
+  ret.reserve(1000);
   return ret;
 }();
 
@@ -120,21 +120,17 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
   res = dwarf_hasattr(type_die, DW_AT_byte_size, &has_byte_size, &err);
   if (has_byte_size) {
     res = dwarf_bytesize(type_die, &byte_size, &err);
-  } else {
-    return nullptr;
   }
   Dwarf_Bool has_name;
   char *type_name;
+  std::string type_name_str;
   res = dwarf_hasattr(type_die, DW_AT_name, &has_name, &err);
   if (has_name) {
     res = dwarf_diename(type_die, &type_name, &err);
-    if (res != DW_DLV_OK) {
-      return nullptr;
-    }
+    type_name_str = std::string(type_name);
   } else {
-    return nullptr;
+    type_name_str = "anonymous";
   }
-  std::string type_name_str(type_name);
   if (tag == DW_TAG_base_type) {
     auto new_type = std::make_shared<Type>(type_name_str, byte_size, false, is_pointer, level);
     return new_type;
@@ -185,16 +181,26 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
   Dwarf_Die child_die;
   Dwarf_Attribute offset_attr;
   auto struct_type_info = std::make_shared<Type>();
-  char *name;
+  char *name = nullptr;
   int res;
   res = get_name(dbg, struct_die, &name);
-  if (struct_infos_.count(std::string(name)) != 0U) {
-    std::cout << "Struct " << name << " has been recorded\n";
-    return;
-  }
+  /* some struct may not have name */
   if (res == DW_DLV_OK) {
+    if (struct_infos_.count(std::string(name)) != 0U) {
+      std::cout << "Struct " << name << " has been recorded\n";
+      return;
+    }
     printf("struct name: %s;", name);
     struct_type_info->type_name_ = std::string(name);
+  } else {
+    struct_type_info->type_name_ = "anonymous";
+  }
+  /*
+  placeholder first, avoid endless recur when the
+  struct has member which type is itself
+  */
+  if (struct_type_info->type_name_ != "anonymous") {
+    struct_infos_[struct_type_info->type_name_] = struct_type_info;
   }
 
   res = dwarf_hasattr(struct_die, DW_AT_byte_size, &has_byte_size, &err);
@@ -219,7 +225,11 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
     /* get member name */
     char *member_name;
     res = get_name(dbg, child_die, &member_name);
-    std::string member_name_str(member_name);
+    std::string member_name_str;
+    if (res != DW_DLV_OK) {
+      member_name_str = "anonymous_member";
+    }
+    member_name_str = std::string(member_name);
     /* get the member offser in struct */
     Dwarf_Unsigned offset_in_struct;
     res = dwarf_formudata(offset_attr, &offset_in_struct, &err);
@@ -228,7 +238,6 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
 
     /* get the meber type info */
     auto member_type_info = Type::ParseTypeDie(dbg, child_die);
-
     /* save */
     struct_type_info->SetMemberOffset(member_name_str, offset_in_struct);
     struct_type_info->SetMemberType(member_name_str, member_type_info);
@@ -237,9 +246,11 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
     /* get next sibling */
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
-  /* save struct info */
-  struct_infos_[struct_type_info->GetTypeName()] = struct_type_info;
-  std::cout << " struct " << struct_type_info->GetTypeName() << " saved\n";
+  /* save struct info, if anoymous, do not save */
+  if (struct_type_info->type_name_ != "anonymous") {
+    struct_infos_[struct_type_info->GetTypeName()] = struct_type_info;
+    std::cout << " struct " << struct_type_info->GetTypeName() << " saved\n";
+  }
   dwarf_dealloc_attribute(offset_attr);
 }
 }  // namespace varviewer

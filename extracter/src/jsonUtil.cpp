@@ -163,7 +163,7 @@ json createJsonforAddress(const Address &addr) {
 */
 json createJsonForType(const std::shared_ptr<Type> &type) {
   nlohmann::json res;
-
+  
   res["typeName"] = type->GetTypeName();
   res["size"] = type->GetTypeSize();
   res["userDefined"] = type->IsUserDefined();

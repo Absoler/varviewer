@@ -34,6 +34,9 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name) {
   int res;
   Dwarf_Bool has_name = false, has_origin = false;
   res = dwarf_hasattr(die, DW_AT_name, &has_name, &err);
+  if (res != DW_DLV_OK) {
+    return 1;
+  }
   res = dwarf_hasattr(die, DW_AT_abstract_origin, &has_origin, &err);
   SIMPLE_HANDLE_ERR(res);
   if (has_name) {
@@ -95,7 +98,8 @@ int get_name(Dwarf_Debug dbg, Dwarf_Die die, char **name) {
     dwarf_dealloc_attribute(off_attr);
     dwarf_dealloc_attribute(name_attr);
   }
-  return 0;
+  /* return 1 here ! */
+  return DW_DLV_NO_ENTRY;
 }
 
 void printindent(int indent) {

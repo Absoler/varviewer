@@ -49,20 +49,11 @@ class Type {
     return member_offset_;
   }
 
-  inline void InsertName(const std::string &name) {
-    VARVIEWER_ASSERT(member_name_.find(name) == member_name_.end(), "member already exists");
-    member_name_.insert(name);
-  }
+  inline void InsertName(const std::string &name) { member_name_.insert(name); }
 
-  inline void SetMemberOffset(const std::string &name, Dwarf_Unsigned offset) {
-    VARVIEWER_ASSERT(member_offset_.find(name) == member_offset_.end(), "member already exists");
-    member_offset_[name] = offset;
-  }
+  inline void SetMemberOffset(const std::string &name, Dwarf_Unsigned offset) { member_offset_[name] = offset; }
 
-  inline void SetMemberType(const std::string &name, std::shared_ptr<Type> type) {
-    VARVIEWER_ASSERT(member_type_.find(name) == member_type_.end(), "member already exists");
-    member_type_[name] = type;
-  }
+  inline void SetMemberType(const std::string &name, std::shared_ptr<Type> type) { member_type_[name] = type; }
 
   ~Type() = default;
 
