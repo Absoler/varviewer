@@ -50,21 +50,26 @@ class Type {
     return member_names_;
   }
 
+  /* now if there is bit field, we just record the first one */
   inline void InsertOffset(const Dwarf_Unsigned &offset) {
-    VARVIEWER_ASSERT(
-        std::find_if(member_offsets_.begin(), member_offsets_.end(),
-                     [&offset](const Dwarf_Unsigned &off) -> bool { return off == offset; }) == member_offsets_.end(),
-        "offset already exists");
+    if (std::find_if(member_offsets_.begin(), member_offsets_.end(),
+                     [&offset](const Dwarf_Unsigned &o) { return o == offset; }) != member_offsets_.end()) {
+      return;
+    }
     member_offsets_.push_back(offset);
   }
 
   inline void SetMemberName(const Dwarf_Unsigned &offset, const std::string &name) {
-    VARVIEWER_ASSERT(member_names_.find(offset) == member_names_.end(), "offset already exists");
+    if (member_names_.count(offset) != 0U) {
+      return;
+    }
     member_names_[offset] = name;
   }
 
   inline void SetMemberType(const Dwarf_Unsigned &offset, std::shared_ptr<Type> &type) {
-    VARVIEWER_ASSERT(member_types_.find(offset) == member_types_.end(), "offset already exists");
+    if (member_types_.count(offset) != 0U) {
+      return;
+    }
     member_types_[offset] = type;
   }
 

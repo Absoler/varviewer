@@ -64,77 +64,73 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
   Dwarf_Error err;
   Dwarf_Half tag;
   int res = 0;
-
-  /* get DW_AT_type attribute */
-  res = dwarf_attr(var_die, DW_AT_type, &type_attr, &err);
-
-  /*
-  must check no entry first, because the err may be null pointer
-  some die may not have DW_AT_type attribute(happen in recur ,
-  now i do not know why, but it is true)
-  */
-  if (res == DW_DLV_NO_ENTRY) {
-    std::cout << "DW_AT_type attribute not found.\n";
-    return nullptr;
-  }
-  if (res == DW_DLV_ERROR) {
-    char *msg = dwarf_errmsg(err);
-    std::cout << "Error: " << msg << "\n";
-    return nullptr;
-  }
-  /* get the dw_at_type really point to's type die offset in global*/
-  res = dwarf_global_formref_b(type_attr, &type_global_offset, &is_info, &err);
-
-  if (res != DW_DLV_OK) {
-    return nullptr;
-  }
-
-  /* using global offset to get the type die */
-  res = dwarf_offdie_b(dbg, type_global_offset, is_info, &type_die, &err);
-
-  if (res != DW_DLV_OK) {
-    return nullptr;
-  }
-  /* get tag name */
-  dwarf_tag(type_die, &tag, &err);
-
-  if (tag == DW_TAG_pointer_type) {
-    return ParseTypeDieInternal(dbg, type_die, true, level + 1);
-  } else if (tag == DW_TAG_const_type || tag == DW_TAG_array_type || tag == DW_TAG_typedef ||
-             tag == DW_TAG_volatile_type || tag == DW_TAG_atomic_type || tag == DW_TAG_reference_type ||
-             tag == DW_TAG_restrict_type || tag == DW_TAG_rvalue_reference_type) {
-    /*
-    const type does not need to level + 1
-    and the recur is_pointer parameter should be same as the top caller
-    because for const int *, its die's type will point to a
-    pointer type die, then the pointer type die willl point
-    to a const type die, so need to keep same as the top caller
-    btw, for int const *, its dies's type will point to a const type die
-    then const type die point to point type die.
-    other tag similarly
-    */
-    return ParseTypeDieInternal(dbg, type_die, is_pointer, level);
-  }
-  Dwarf_Unsigned byte_size;
-  Dwarf_Bool has_byte_size = true;
-  res = dwarf_hasattr(type_die, DW_AT_byte_size, &has_byte_size, &err);
-  if (has_byte_size) {
-    res = dwarf_bytesize(type_die, &byte_size, &err);
-  }
-  Dwarf_Bool has_name;
-  char *type_name;
   std::string type_name_str;
-  res = dwarf_hasattr(type_die, DW_AT_name, &has_name, &err);
-  if (has_name) {
-    res = dwarf_diename(type_die, &type_name, &err);
-    type_name_str = std::string(type_name);
+  Dwarf_Bool has_type = false;
+  Dwarf_Unsigned byte_size;
+  Dwarf_Bool has_byte_size = false;
+  Dwarf_Bool has_name = false;
+  char *type_name;
+
+  res = dwarf_hasattr(var_die, DW_AT_type, &has_type, &err);
+  if (has_type) {
+    /* get DW_AT_type attribute */
+    res = dwarf_attr(var_die, DW_AT_type, &type_attr, &err);
+    /* get the dw_at_type really point to's type die offset in global*/
+    res = dwarf_global_formref_b(type_attr, &type_global_offset, &is_info, &err);
+    if (res != DW_DLV_OK) {
+      return nullptr;
+    }
+
+    /* using global offset to get the type die */
+    res = dwarf_offdie_b(dbg, type_global_offset, is_info, &type_die, &err);
+
+    if (res != DW_DLV_OK) {
+      return nullptr;
+    }
+
+    /* get tag name */
+    dwarf_tag(type_die, &tag, &err);
+    if (tag == DW_TAG_pointer_type) {
+      return ParseTypeDieInternal(dbg, type_die, true, level + 1);
+    } else if (tag == DW_TAG_const_type || tag == DW_TAG_array_type || tag == DW_TAG_typedef ||
+               tag == DW_TAG_volatile_type || tag == DW_TAG_atomic_type || tag == DW_TAG_reference_type ||
+               tag == DW_TAG_restrict_type || tag == DW_TAG_rvalue_reference_type) {
+      /*
+      const type does not need to level + 1
+      and the recur is_pointer parameter should be same as the top caller
+      because for const int *, its die's type will point to a
+      pointer type die, then the pointer type die willl point
+      to a const type die, so need to keep same as the top caller
+      btw, for int const *, its dies's type will point to a const type die
+      then const type die point to point type die.
+      other tag similarly
+      */
+      return ParseTypeDieInternal(dbg, type_die, is_pointer, level);
+    }
+    res = dwarf_hasattr(type_die, DW_AT_byte_size, &has_byte_size, &err);
+    if (has_byte_size) {
+      res = dwarf_bytesize(type_die, &byte_size, &err);
+    }
+
+    res = dwarf_hasattr(type_die, DW_AT_name, &has_name, &err);
+    if (has_name) {
+      res = dwarf_diename(type_die, &type_name, &err);
+      type_name_str = std::string(type_name);
+    } else {
+      type_name_str = "anonymous";
+    }
   } else {
-    type_name_str = "anonymous";
+    /* when program reach here, it means void type, void * , void ** ... */
+    type_name_str = "void";
+    byte_size = 8;
+    auto new_type = std::make_shared<Type>(type_name_str, byte_size, false, is_pointer, level);
+    return new_type;
   }
+
   if (tag == DW_TAG_base_type) {
     auto new_type = std::make_shared<Type>(type_name_str, byte_size, false, is_pointer, level);
     return new_type;
-  } else {
+  } else if (tag == DW_TAG_structure_type) {
     /*
     if the struct has not been record, tells that the struct member type die is defined
     behind the current struct
@@ -160,6 +156,7 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
     }
     return new_type;
   }
+  return nullptr;
 }
 
 /**
@@ -175,6 +172,7 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
  *       ,nullptr if failed
  */
 void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
+  std::cout << "\n\033[1;32mparse struct type\033[0m\n";
   Dwarf_Error err;
   Dwarf_Unsigned byte_size;
   Dwarf_Bool has_byte_size = true;
@@ -190,17 +188,12 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
       std::cout << "Struct " << name << " has been recorded\n";
       return;
     }
+    /* placeholder first, avoid endless recur when the struct has member which type is itself */
+    struct_infos_[std::string(name)] = struct_type_info;
     printf("struct name: %s;\t", name);
     struct_type_info->type_name_ = std::string(name);
   } else {
     struct_type_info->type_name_ = "anonymous";
-  }
-  /*
-  placeholder first, avoid endless recur when the
-  struct has member which type is itself
-  */
-  if (struct_type_info->type_name_ != "anonymous") {
-    struct_infos_[struct_type_info->type_name_] = struct_type_info;
   }
 
   res = dwarf_hasattr(struct_die, DW_AT_byte_size, &has_byte_size, &err);
@@ -225,16 +218,15 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
     /* get member name */
     char *member_name;
     res = get_name(dbg, child_die, &member_name);
-    std::string member_name_str;
-    if (res != DW_DLV_OK) {
-      member_name_str = "anonymous_member";
+    /* has no name */
+    if (res == DW_DLV_NO_ENTRY) {
+      continue;
     }
-    member_name_str = std::string(member_name);
+    std::string member_name_str{member_name};
     /* get the member offser in struct */
     Dwarf_Unsigned offset_in_struct;
     res = dwarf_formudata(offset_attr, &offset_in_struct, &err);
-    printf("struct member name : %s;\t", member_name);
-    printf("struct member offset : %llu;\t", offset_in_struct);
+    printf("struct member name : %s;offset : %llu;\t", member_name, offset_in_struct);
 
     /* get the meber type info */
     auto member_type_info = Type::ParseTypeDie(dbg, child_die);
@@ -253,6 +245,8 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
   if (struct_type_info->type_name_ != "anonymous") {
     struct_infos_[struct_type_info->GetTypeName()] = struct_type_info;
     std::cout << " struct " << struct_type_info->GetTypeName() << " saved\n";
+  } else {
+    std::cout << " struct anonymous parsed\n";
   }
   dwarf_dealloc_attribute(offset_attr);
 }
