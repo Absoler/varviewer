@@ -1,6 +1,7 @@
 #pragma once
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <list>
@@ -39,21 +40,33 @@ class Type {
 
   inline auto GetPointerLevel() const -> size_t { return pointer_level_; }
 
-  inline auto GetMemberNames() const -> const std::unordered_set<std::string> & { return member_name_; }
+  inline auto GetMemberOffsets() const -> const std::list<Dwarf_Unsigned> & { return member_offsets_; }
 
-  inline auto GetMemberTypes() const -> const std::unordered_map<std::string, std::shared_ptr<Type>> & {
-    return member_type_;
+  inline auto GetMemberTypes() const -> const std::unordered_map<Dwarf_Unsigned, std::shared_ptr<Type>> & {
+    return member_types_;
   }
 
-  inline auto GetMemberOffsets() const -> const std::unordered_map<std::string, Dwarf_Unsigned> & {
-    return member_offset_;
+  inline auto GetMemberNames() const -> const std::unordered_map<Dwarf_Unsigned, std::string> & {
+    return member_names_;
   }
 
-  inline void InsertName(const std::string &name) { member_name_.insert(name); }
+  inline void InsertOffset(const Dwarf_Unsigned &offset) {
+    VARVIEWER_ASSERT(
+        std::find_if(member_offsets_.begin(), member_offsets_.end(),
+                     [&offset](const Dwarf_Unsigned &off) -> bool { return off == offset; }) == member_offsets_.end(),
+        "offset already exists");
+    member_offsets_.push_back(offset);
+  }
 
-  inline void SetMemberOffset(const std::string &name, Dwarf_Unsigned offset) { member_offset_[name] = offset; }
+  inline void SetMemberName(const Dwarf_Unsigned &offset, const std::string &name) {
+    VARVIEWER_ASSERT(member_names_.find(offset) == member_names_.end(), "offset already exists");
+    member_names_[offset] = name;
+  }
 
-  inline void SetMemberType(const std::string &name, std::shared_ptr<Type> type) { member_type_[name] = type; }
+  inline void SetMemberType(const Dwarf_Unsigned &offset, std::shared_ptr<Type> &type) {
+    VARVIEWER_ASSERT(member_types_.find(offset) == member_types_.end(), "offset already exists");
+    member_types_[offset] = type;
+  }
 
   ~Type() = default;
 
@@ -74,14 +87,14 @@ class Type {
   /* whether user-defined */
   bool user_defined_;
 
-  /*if user-defined struct, record the members name */
-  std::unordered_set<std::string> member_name_;
+  /*if user-defined struct, record the members offsets */
+  std::list<Dwarf_Unsigned> member_offsets_;
+
+  /*if user-defined struct, record the members names */
+  std::unordered_map<Dwarf_Unsigned, std::string> member_names_;
 
   /*if user-defined struct, record the members type */
-  std::unordered_map<std::string, std::shared_ptr<Type>> member_type_;
-
-  /* if user-defined struct, record the members offset */
-  std::unordered_map<std::string, Dwarf_Unsigned> member_offset_;
+  std::unordered_map<Dwarf_Unsigned, std::shared_ptr<Type>> member_types_;
 
   /* whether pointer */
   bool is_pointer_{false};

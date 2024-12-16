@@ -99,7 +99,6 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
     }
     jsonOut << jsonStr;
     jsonOut.flush();
-    // TODO(tangc) : add a address to the struct member for each
 
     /* for every member of the struct, output the a addr json( if has ) */
     if (type_info && type_info->IsUserDefined()) {
@@ -127,40 +126,56 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
   if (type_info == nullptr || !type_info->IsUserDefined()) {
     return;
   }
-  const auto &members = type_info->GetMemberNames();
-  for (const auto &member_name : members) {
-    /* copy the struct's and add offset */
+
+  // Get members' offsets, names, and types
+  const auto &member_offsets = type_info->GetMemberOffsets();
+  const auto &member_names = type_info->GetMemberNames();
+  const auto &member_types = type_info->GetMemberTypes();
+
+  // Iterate through member offsets
+  for (const auto &offset : member_offsets) {
+    if (member_names.count(offset) == 0 || member_types.count(offset) == 0) {
+      throw std::runtime_error("Invalid offset in struct member information");
+    }
+
+    const std::string &member_name = member_names.at(offset);
+    const auto &member_type_info = member_types.at(offset);
+
+    // Copy the parent address and update member name
     Address member_addr = addr;
-    /* if is not pointer, add the struct name to the member name using "." */
+
+    // If not a pointer, use "." to concatenate the struct and member names
     if (!type_info->IsPointer()) {
       member_addr.name_ = addr.name_ + "." + member_name;
     } else {
-      /* Handle pointer dereferencing levels with parentheses */
+      // Handle pointer dereferencing levels with parentheses
       std::string pointer_prefix = addr.name_;
       size_t pointer_level = type_info->GetPointerLevel();
       for (size_t i = 1; i < pointer_level; ++i) {
-        /* Add '*' with parentheses around each dereference */
         pointer_prefix = "*(" + pointer_prefix + ")";
       }
-      /* add '->' */
       member_addr.name_ = pointer_prefix + "->" + member_name;
     }
-    for (auto &addr_exp : member_addr.addrs_) {
-      addr_exp.offset_ += type_info->GetMemberOffsets().at(member_name);
-    }
-    /* get the member type */
-    member_addr.type_info_ = type_info->GetMemberTypes().at(member_name);
 
-    /* output */
+    // Update address expressions by adding the offset
+    for (auto &addr_exp : member_addr.addrs_) {
+      addr_exp.offset_ += offset;
+    }
+
+    // Set the member type info
+    member_addr.type_info_ = member_type_info;
+
+    // Output the member's JSON representation
     json memberJson = createJsonforAddress(member_addr);
     std::string memberJsonStr = memberJson.dump(4);
     memberJson.clear();
     jsonOut << ",\n";
     jsonOut << memberJsonStr;
     jsonOut.flush();
-    /* if member is also struct, recur */
-    if (member_addr.type_info_ && member_addr.type_info_->IsUserDefined()) {
-      OutputJsonForMembers(member_addr, member_addr.type_info_);
+
+    // Recur if the member is also a user-defined struct
+    if (member_type_info && member_type_info->IsUserDefined()) {
+      OutputJsonForMembers(member_addr, member_type_info);
     }
   }
 }

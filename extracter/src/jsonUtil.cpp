@@ -161,39 +161,47 @@ json createJsonforAddress(const Address &addr) {
       }
   }
 */
-json createJsonForType(const std::shared_ptr<Type> &type) {
+nlohmann::json createJsonForType(const std::shared_ptr<Type> &type) {
   nlohmann::json res;
-  
+
   res["typeName"] = type->GetTypeName();
   res["size"] = type->GetTypeSize();
   res["userDefined"] = type->IsUserDefined();
   res["isPointer"] = type->IsPointer();
   res["pointerLevel"] = type->GetPointerLevel();
 
-  /* if user defined , add members info */
+  // If the type is user-defined, include member information
   if (type->IsUserDefined()) {
-    auto members_json = nlohmann::json::object();
+    nlohmann::json members_json = nlohmann::json::object();
 
-    /* get member info */
+    // Get member information
+    const auto &member_offsets = type->GetMemberOffsets();
     const auto &member_names = type->GetMemberNames();
     const auto &member_types = type->GetMemberTypes();
-    const auto &member_offsets = type->GetMemberOffsets();
+    // Iterate over the member offsets and retrieve their details
+    for (const auto &offset : member_offsets) {
+      // Ensure the offset exists in both maps
+      if (member_names.count(offset) == 0 || member_types.count(offset) == 0) {
+        throw std::runtime_error("Invalid offset in struct member information");
+      }
 
-    /* iter the memer name and record */
-    for (const auto &name : member_names) {
-      Dwarf_Unsigned offset = member_offsets.at(name);
+      // Get the member name and type
+      const std::string &name = member_names.at(offset);
+      const auto &type_info = member_types.at(offset);
+      // Create a JSON object for this member
       nlohmann::json member_info = nlohmann::json::object();
       member_info["memberName"] = name;
-      auto type_info = member_types.at(name);
-      /* recur */
-      member_info["type"] = createJsonForType(type_info);
+      member_info["type"] = createJsonForType(type_info);  // Recursive call
+
+      // Use offset as the key in the members JSON object
       members_json[std::to_string(offset)] = member_info;
     }
 
-    /* add member info to the return json */
+    // Add members to the result JSON
     res["members"] = members_json;
   }
 
   return res;
 }
+
 }  // namespace varviewer

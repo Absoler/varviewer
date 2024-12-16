@@ -135,9 +135,6 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
     auto new_type = std::make_shared<Type>(type_name_str, byte_size, false, is_pointer, level);
     return new_type;
   } else {
-    /* user defined struct */
-    auto new_type = std::make_shared<Type>(type_name_str, byte_size, true, is_pointer, level);
-
     /*
     if the struct has not been record, tells that the struct member type die is defined
     behind the current struct
@@ -151,12 +148,15 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
     if (struct_infos_.count(type_name_str) == 0U) {
       ParseStructType(dbg, type_die);
     }
+
+    /* user defined struct */
+    auto new_type = std::make_shared<Type>(type_name_str, byte_size, true, is_pointer, level);
     auto it = struct_infos_.find(type_name_str);
     if (it != struct_infos_.end()) {
       auto &struct_ptr = it->second;
-      new_type->member_name_ = struct_ptr->GetMemberNames();
-      new_type->member_type_ = struct_ptr->GetMemberTypes();
-      new_type->member_offset_ = struct_ptr->GetMemberOffsets();
+      new_type->member_offsets_ = struct_ptr->GetMemberOffsets();
+      new_type->member_names_ = struct_ptr->GetMemberNames();
+      new_type->member_types_ = struct_ptr->GetMemberTypes();
     }
     return new_type;
   }
@@ -190,7 +190,7 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
       std::cout << "Struct " << name << " has been recorded\n";
       return;
     }
-    printf("struct name: %s;", name);
+    printf("struct name: %s;\t", name);
     struct_type_info->type_name_ = std::string(name);
   } else {
     struct_type_info->type_name_ = "anonymous";
@@ -233,16 +233,19 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
     /* get the member offser in struct */
     Dwarf_Unsigned offset_in_struct;
     res = dwarf_formudata(offset_attr, &offset_in_struct, &err);
-    printf("struct member name : %s;", member_name);
-    printf("struct member offset : %llu;", offset_in_struct);
+    printf("struct member name : %s;\t", member_name);
+    printf("struct member offset : %llu;\t", offset_in_struct);
 
     /* get the meber type info */
     auto member_type_info = Type::ParseTypeDie(dbg, child_die);
+    // if (member_type_info->GetTypeName() == struct_type_info->GetTypeName()) {
+    //   std::cout << "member type is itself\t";
+    //   member_type_info = nullptr;
+    // }
     /* save */
-    struct_type_info->SetMemberOffset(member_name_str, offset_in_struct);
-    struct_type_info->SetMemberType(member_name_str, member_type_info);
-    struct_type_info->InsertName(member_name_str);
-
+    struct_type_info->InsertOffset(offset_in_struct);
+    struct_type_info->SetMemberName(offset_in_struct, member_name_str);
+    struct_type_info->SetMemberType(offset_in_struct, member_type_info);
     /* get next sibling */
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
