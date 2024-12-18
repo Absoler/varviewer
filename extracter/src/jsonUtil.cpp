@@ -2,14 +2,13 @@
 
 #include <libdwarf-0/libdwarf.h>
 
-#include <ios>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
 
 #include "include/Address.h"
 #include "include/Expression.h"
+#include "include/type.h"
 
 namespace varviewer {
 json createJsonforExpression(const Expression &exp) {
@@ -163,7 +162,9 @@ json createJsonforAddress(const Address &addr) {
 */
 nlohmann::json createJsonForType(const std::shared_ptr<Type> &type) {
   nlohmann::json res;
-
+  if (type == nullptr) {
+    return res;
+  }
   res["typeName"] = type->GetTypeName();
   res["size"] = type->GetTypeSize();
   res["userDefined"] = type->IsUserDefined();
@@ -172,12 +173,14 @@ nlohmann::json createJsonForType(const std::shared_ptr<Type> &type) {
 
   // If the type is user-defined, include member information
   if (type->IsUserDefined()) {
+    res["userDefinedType"] = type->GetUserDefinedType() == UserDefindType::STRUCT ? "Struct" : "Union";
     nlohmann::json members_json = nlohmann::json::object();
 
     // Get member information
     const auto &member_offsets = type->GetMemberOffsets();
     const auto &member_names = type->GetMemberNames();
     const auto &member_types = type->GetMemberTypes();
+
     // Iterate over the member offsets and retrieve their details
     for (const auto &offset : member_offsets) {
       // Ensure the offset exists in both maps
@@ -185,16 +188,26 @@ nlohmann::json createJsonForType(const std::shared_ptr<Type> &type) {
         throw std::runtime_error("Invalid offset in struct member information");
       }
 
-      // Get the member name and type
-      const std::string &name = member_names.at(offset);
-      const auto &type_info = member_types.at(offset);
-      // Create a JSON object for this member
-      nlohmann::json member_info = nlohmann::json::object();
-      member_info["memberName"] = name;
-      member_info["type"] = createJsonForType(type_info);  // Recursive call
+      const auto &names = member_names.at(offset);
+      const auto &types = member_types.at(offset);
 
-      // Use offset as the key in the members JSON object
-      members_json[std::to_string(offset)] = member_info;
+      // Ensure the number of names and types match
+      if (names.size() != types.size()) {
+        throw std::runtime_error("Mismatched member names and types at offset: " + std::to_string(offset));
+      }
+
+      // Iterate through the members at the current offset
+      nlohmann::json members_at_offset = nlohmann::json::array();
+      for (size_t i = 0; i < names.size(); ++i) {
+        nlohmann::json member_info = nlohmann::json::object();
+        member_info["memberName"] = names[i];
+        member_info["type"] = createJsonForType(types[i]);  // Recursive call
+
+        members_at_offset.push_back(member_info);
+      }
+
+      // Use the offset as the key in the members JSON object
+      members_json[std::to_string(offset)] = members_at_offset;
     }
 
     // Add members to the result JSON

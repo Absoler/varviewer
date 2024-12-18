@@ -12,7 +12,6 @@
 #include <ostream>
 #include <string>
 #include "include/Address.h"
-#include "include/jsonUtil.h"
 #include "include/type.h"
 #include "include/util.h"
 
@@ -137,45 +136,46 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
     if (member_names.count(offset) == 0 || member_types.count(offset) == 0) {
       throw std::runtime_error("Invalid offset in struct member information");
     }
+    const auto &names = member_names.at(offset);
+    const auto &types = member_types.at(offset);
+    VARVIEWER_ASSERT(names.size() == types.size(),
+                     "Mismatched member names and types at offset " + std::to_string(offset));
+    for (size_t i = 0; i < names.size(); ++i) {
+      const std::string &member_name = names[i];
+      const std::shared_ptr<Type> &member_type_info = types[i];
 
-    const std::string &member_name = member_names.at(offset);
-    const auto &member_type_info = member_types.at(offset);
+      // Copy the parent address and update member name
+      Address member_addr = addr;
 
-    // Copy the parent address and update member name
-    Address member_addr = addr;
-
-    // If not a pointer, use "." to concatenate the struct and member names
-    if (!type_info->IsPointer()) {
-      member_addr.name_ = addr.name_ + "." + member_name;
-    } else {
-      // Handle pointer dereferencing levels with parentheses
-      std::string pointer_prefix = addr.name_;
-      size_t pointer_level = type_info->GetPointerLevel();
-      for (size_t i = 1; i < pointer_level; ++i) {
-        pointer_prefix = "*(" + pointer_prefix + ")";
+      // If the member has an empty type_name (anonymous struct or union), treat it accordingly
+      if (member_type_info && member_type_info->GetTypeName().empty()) {
+        // If member is an anonymous structure or union, use the parent structure's name as prefix
+        member_addr.name_ = addr.name_ + "." + member_name;
+      } else {
+        // If not an anonymous member, concatenate normally
+        member_addr.name_ = addr.name_ + "." + member_name;
       }
-      member_addr.name_ = pointer_prefix + "->" + member_name;
-    }
 
-    // Update address expressions by adding the offset
-    for (auto &addr_exp : member_addr.addrs_) {
-      addr_exp.offset_ += offset;
-    }
+      // Update address expressions by adding the offset
+      for (auto &addr_exp : member_addr.addrs_) {
+        addr_exp.offset_ += offset;
+      }
 
-    // Set the member type info
-    member_addr.type_info_ = member_type_info;
+      // Set the member type info
+      member_addr.type_info_ = member_type_info;
 
-    // Output the member's JSON representation
-    json memberJson = createJsonforAddress(member_addr);
-    std::string memberJsonStr = memberJson.dump(4);
-    memberJson.clear();
-    jsonOut << ",\n";
-    jsonOut << memberJsonStr;
-    jsonOut.flush();
+      // Output the member's JSON representation
+      json memberJson = createJsonforAddress(member_addr);
+      std::string memberJsonStr = memberJson.dump(4);
+      memberJson.clear();
+      jsonOut << ",\n";
+      jsonOut << memberJsonStr;
+      jsonOut.flush();
 
-    // Recur if the member is also a user-defined struct
-    if (member_type_info && member_type_info->IsUserDefined()) {
-      OutputJsonForMembers(member_addr, member_type_info);
+      // Recur if the member is also a user-defined struct or union
+      if (member_type_info && member_type_info->IsUserDefined()) {
+        OutputJsonForMembers(member_addr, member_type_info);
+      }
     }
   }
 }

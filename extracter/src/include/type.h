@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <iterator>
 #include <list>
 #include <map>
 #include <memory>
@@ -17,12 +18,21 @@ namespace varviewer {
 // <piece_start, piece_size>
 using piece_type = std::pair<Dwarf_Addr, int>;
 
+enum class UserDefindType : uint8_t { STRUCT, UNION };
+
 class Type {
  public:
   Type() = default;
 
+  // constructor for base type
   Type(const std::string &type_name, const Dwarf_Unsigned &size, const bool &user_defined, const bool &is_pointer,
        const size_t &level);
+
+  // constructor for user defined type
+  Type(const std::string &type_name, const Dwarf_Unsigned &size, const bool &user_defined, const bool &is_pointer,
+       const size_t &level, const UserDefindType &user_defined_type, const std::list<Dwarf_Unsigned> &member_offsets,
+       const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> &member_names,
+       const std::unordered_map<Dwarf_Unsigned, std::vector<std::shared_ptr<Type>>> &member_types);
 
   Type(const Type &type);
 
@@ -30,48 +40,49 @@ class Type {
 
   static void ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die);
 
-  inline auto GetTypeName() const -> std::string { return type_name_; }
+  auto static ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> std::shared_ptr<Type>;
 
-  inline auto GetTypeSize() const -> Dwarf_Unsigned { return size_; }
+  auto GetTypeName() const -> const std::string &;
 
-  inline auto IsUserDefined() const -> bool { return user_defined_; }
+  void SetTypeName(const std::string &type_name);
 
-  inline auto IsPointer() const -> bool { return is_pointer_; }
+  auto GetTypeSize() const -> const Dwarf_Unsigned &;
 
-  inline auto GetPointerLevel() const -> size_t { return pointer_level_; }
+  void SetTypeSize(const Dwarf_Unsigned &size);
 
-  inline auto GetMemberOffsets() const -> const std::list<Dwarf_Unsigned> & { return member_offsets_; }
+  auto IsUserDefined() const -> bool;
 
-  inline auto GetMemberTypes() const -> const std::unordered_map<Dwarf_Unsigned, std::shared_ptr<Type>> & {
-    return member_types_;
-  }
+  void SetUserDefined(const bool &user_defined);
 
-  inline auto GetMemberNames() const -> const std::unordered_map<Dwarf_Unsigned, std::string> & {
-    return member_names_;
-  }
+  auto IsPointer() const -> bool;
 
-  /* now if there is bit field, we just record the first one */
-  inline void InsertOffset(const Dwarf_Unsigned &offset) {
-    if (std::find_if(member_offsets_.begin(), member_offsets_.end(),
-                     [&offset](const Dwarf_Unsigned &o) { return o == offset; }) != member_offsets_.end()) {
-      return;
-    }
-    member_offsets_.push_back(offset);
-  }
+  void SetIsPointer(const bool &is_pointer);
 
-  inline void SetMemberName(const Dwarf_Unsigned &offset, const std::string &name) {
-    if (member_names_.count(offset) != 0U) {
-      return;
-    }
-    member_names_[offset] = name;
-  }
+  auto GetPointerLevel() const -> size_t;
 
-  inline void SetMemberType(const Dwarf_Unsigned &offset, std::shared_ptr<Type> &type) {
-    if (member_types_.count(offset) != 0U) {
-      return;
-    }
-    member_types_[offset] = type;
-  }
+  void SetPointerLevel(const size_t &pointer_level);
+
+  auto GetUserDefinedType() const -> UserDefindType;
+
+  void SetUserDefinedType(const UserDefindType &user_defined_type);
+
+  auto GetMemberOffsets() const -> const std::list<Dwarf_Unsigned> &;
+
+  void SetMemberOffsets(const std::list<Dwarf_Unsigned> &member_offsets);
+
+  auto GetMemberTypes() const -> const std::unordered_map<Dwarf_Unsigned, std::vector<std::shared_ptr<Type>>> &;
+
+  void SetMemberTypes(const std::unordered_map<Dwarf_Unsigned, std::vector<std::shared_ptr<Type>>> &member_types);
+
+  auto GetMemberNames() const -> const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> &;
+
+  void SetMemberNames(const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> &member_names);
+
+  void InsertOffset(const Dwarf_Unsigned &offset);
+
+  void InsertMemberName(const Dwarf_Unsigned &offset, const std::string &name);
+
+  void InsertMemberType(const Dwarf_Unsigned &offset, std::shared_ptr<Type> &type);
 
   ~Type() = default;
 
@@ -92,14 +103,19 @@ class Type {
   /* whether user-defined */
   bool user_defined_;
 
+  /* if user-defined, whether struct or union? */
+  UserDefindType user_defined_type_;
+
   /*if user-defined struct, record the members offsets */
   std::list<Dwarf_Unsigned> member_offsets_;
-
-  /*if user-defined struct, record the members names */
-  std::unordered_map<Dwarf_Unsigned, std::string> member_names_;
+  /*
+  if user-defined struct, record the members names, value use set because there may be same offset member in struct,
+  eg: union and bit field
+  */
+  std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> member_names_;
 
   /*if user-defined struct, record the members type */
-  std::unordered_map<Dwarf_Unsigned, std::shared_ptr<Type>> member_types_;
+  std::unordered_map<Dwarf_Unsigned, std::vector<std::shared_ptr<Type>>> member_types_;
 
   /* whether pointer */
   bool is_pointer_{false};
