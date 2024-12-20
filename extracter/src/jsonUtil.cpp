@@ -173,13 +173,14 @@ nlohmann::json createJsonForType(const std::shared_ptr<Type> &type) {
 
   // If the type is user-defined, include member information
   if (type->IsUserDefined()) {
-    res["userDefinedType"] = type->GetUserDefinedType() == UserDefindType::STRUCT ? "Struct" : "Union";
+    auto user_defined_type = std::dynamic_pointer_cast<UserDefinedType>(type);
+    res["userDefinedType"] = user_defined_type->GetUserDefinedType() == UserDefined::STRUCT ? "Struct" : "Union";
     nlohmann::json members_json = nlohmann::json::object();
 
     // Get member information
-    const auto &member_offsets = type->GetMemberOffsets();
-    const auto &member_names = type->GetMemberNames();
-    const auto &member_types = type->GetMemberTypes();
+    const auto &member_offsets = user_defined_type->GetMemberOffsets();
+    const auto &member_names = user_defined_type->GetMemberNames();
+    const auto &member_types = user_defined_type->GetMemberTypes();
 
     // Iterate over the member offsets and retrieve their details
     for (const auto &offset : member_offsets) {

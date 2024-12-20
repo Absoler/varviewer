@@ -125,11 +125,11 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
   if (type_info == nullptr || !type_info->IsUserDefined()) {
     return;
   }
-
+  auto user_defined_type_info = std::dynamic_pointer_cast<UserDefinedType>(type_info);
   // Get members' offsets, names, and types
-  const auto &member_offsets = type_info->GetMemberOffsets();
-  const auto &member_names = type_info->GetMemberNames();
-  const auto &member_types = type_info->GetMemberTypes();
+  const auto &member_offsets = user_defined_type_info->GetMemberOffsets();
+  const auto &member_names = user_defined_type_info->GetMemberNames();
+  const auto &member_types = user_defined_type_info->GetMemberTypes();
 
   // Iterate through member offsets
   for (const auto &offset : member_offsets) {
@@ -146,14 +146,15 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
 
       // Copy the parent address and update member name
       Address member_addr = addr;
-
-      // If the member has an empty type_name (anonymous struct or union), treat it accordingly
-      if (member_type_info && member_type_info->GetTypeName().empty()) {
-        // If member is an anonymous structure or union, use the parent structure's name as prefix
+      if (!type_info->IsPointer()) {
         member_addr.name_ = addr.name_ + "." + member_name;
       } else {
-        // If not an anonymous member, concatenate normally
-        member_addr.name_ = addr.name_ + "." + member_name;
+        std::string pointer_prefix = addr.name_;
+        size_t pointer_level = type_info->GetPointerLevel();
+        for (size_t i = 1; i < pointer_level; ++i) {
+          pointer_prefix = "*(" + pointer_prefix + ")";
+        }
+        member_addr.name_ = pointer_prefix + "->" + member_name;
       }
 
       // Update address expressions by adding the offset
