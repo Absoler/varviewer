@@ -9,6 +9,7 @@
 #include "include/Address.h"
 #include "include/Expression.h"
 #include "include/type.h"
+#include "include/util.h"
 
 namespace varviewer {
 json createJsonforExpression(const Expression &exp) {
@@ -174,6 +175,7 @@ nlohmann::json createJsonForType(const std::shared_ptr<Type> &type) {
   // If the type is user-defined, include member information
   if (type->IsUserDefined()) {
     auto user_defined_type = std::dynamic_pointer_cast<UserDefinedType>(type);
+    VARVIEWER_ASSERT(user_defined_type != nullptr, "Cast to user-defined type failed");
     res["userDefinedType"] = user_defined_type->GetUserDefinedType() == UserDefined::STRUCT ? "Struct" : "Union";
     nlohmann::json members_json = nlohmann::json::object();
 
@@ -203,7 +205,6 @@ nlohmann::json createJsonForType(const std::shared_ptr<Type> &type) {
         nlohmann::json member_info = nlohmann::json::object();
         member_info["memberName"] = names[i];
         member_info["type"] = createJsonForType(types[i]);  // Recursive call
-
         members_at_offset.push_back(member_info);
       }
 

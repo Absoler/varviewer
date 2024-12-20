@@ -34,7 +34,7 @@ class Type {
 
   auto static ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die) -> TypeRef;
 
-  static void ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die);
+  auto static ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef;
 
   auto static ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef;
 
@@ -80,17 +80,17 @@ class Type {
 };
 
 /* builtin type */
-class BasesType : public Type {
+class BaseType : public Type {
  public:
-  BasesType() = default;
+  BaseType() = default;
 
-  BasesType(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer, const size_t &level);
+  BaseType(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer, const size_t &level);
 
-  BasesType(const BasesType &base_type);
+  BaseType(const BaseType &base_type);
 
   virtual auto IsUserDefined() const -> bool override;
 
-  ~BasesType() = default;
+  ~BaseType() = default;
 
  private:
   bool user_defined_{false};

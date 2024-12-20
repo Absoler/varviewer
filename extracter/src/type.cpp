@@ -12,9 +12,8 @@
 namespace varviewer {
 
 /* static member must init out of class */
-std::unordered_map<std::string, std::shared_ptr<Type>> Type::struct_infos_ =
-    []() -> std::unordered_map<std::string, std::shared_ptr<Type>> {
-  std::unordered_map<std::string, std::shared_ptr<Type>> ret;
+std::unordered_map<std::string, TypeRef> Type::struct_infos_ = []() -> std::unordered_map<std::string, TypeRef> {
+  std::unordered_map<std::string, TypeRef> ret;
   ret.reserve(1000);
   return ret;
 }();
@@ -29,106 +28,8 @@ Type::Type(const Type &type)
       is_pointer_(type.is_pointer_),
       pointer_level_(type.pointer_level_) {}
 
-// getter and setter
-auto Type::GetTypeName() const -> const std::string & { return type_name_; }
-
-void Type::SetTypeName(const std::string &type_name) { type_name_ = type_name; }
-
-auto Type::GetTypeSize() const -> const Dwarf_Unsigned & { return size_; }
-
-void Type::SetTypeSize(const Dwarf_Unsigned &size) { size_ = size; }
-
-auto Type::IsPointer() const -> bool { return is_pointer_; }
-
-void Type::SetIsPointer(const bool &is_pointer) { is_pointer_ = is_pointer; }
-
-auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
-
-void Type::SetPointerLevel(const size_t &pointer_level) { pointer_level_ = pointer_level; }
-// end of getter and setter
-
-BasesType::BasesType(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer,
-                     const size_t &pointer_level)
-    : Type(type_name, size, is_pointer, pointer_level) {}
-
-BasesType::BasesType(const BasesType &base_type) : Type(base_type) {}
-
-auto BasesType::IsUserDefined() const -> bool { return user_defined_; }
-
-UserDefinedType::UserDefinedType(
-    const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer, const size_t &level,
-    const UserDefined &user_defined_type, const std::list<Dwarf_Unsigned> &member_offsets,
-    const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> &member_names,
-    const std::unordered_map<Dwarf_Unsigned, std::vector<std::shared_ptr<Type>>> &member_types)
-    : Type(type_name, size, is_pointer, level),
-      user_defined_type_(user_defined_type),
-      member_offsets_(member_offsets),
-      member_names_(member_names),
-      member_types_(member_types) {}
-
-UserDefinedType::UserDefinedType(const UserDefinedType &user_defined_type)
-    : Type(user_defined_type),
-      user_defined_type_(user_defined_type.user_defined_type_),
-      member_offsets_(user_defined_type.member_offsets_),
-      member_names_(user_defined_type.member_names_),
-      member_types_(user_defined_type.member_types_) {}
-
-/* getter and setter */
-auto UserDefinedType::IsUserDefined() const -> bool { return true; }
-
-auto UserDefinedType::GetUserDefinedType() const -> UserDefined {
-  VARVIEWER_ASSERT(user_defined_ == true, "Get user defined type for not a user defined type");
-  return user_defined_type_;
-}
-
-void UserDefinedType::SetUserDefinedType(const UserDefined &user_defined_type) {
-  VARVIEWER_ASSERT(user_defined_ == true, "Set user defined type for not a user defined type");
-  user_defined_type_ = user_defined_type;
-}
-
-auto UserDefinedType::GetMemberOffsets() const -> const std::list<Dwarf_Unsigned> & { return member_offsets_; }
-
-void UserDefinedType::SetMemberOffsets(const std::list<Dwarf_Unsigned> &member_offsets) {
-  member_offsets_ = member_offsets;
-}
-
-auto UserDefinedType::GetMemberTypes() const
-    -> const std::unordered_map<Dwarf_Unsigned, std::vector<std::shared_ptr<Type>>> & {
-  return member_types_;
-}
-
-void UserDefinedType::SetMemberTypes(
-    const std::unordered_map<Dwarf_Unsigned, std::vector<std::shared_ptr<Type>>> &member_types) {
-  member_types_ = member_types;
-}
-
-auto UserDefinedType::GetMemberNames() const -> const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> & {
-  return member_names_;
-}
-
-void UserDefinedType::SetMemberNames(const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> &member_names) {
-  member_names_ = member_names;
-}
-/* end of getter and setter */
-
-void UserDefinedType::InsertOffset(const Dwarf_Unsigned &offset) {
-  /* one offset should only record once, and need to check empty first */
-  if (!member_offsets_.empty() && member_offsets_.back() == offset) {
-    return;
-  }
-  member_offsets_.push_back(offset);
-}
-
-void UserDefinedType::InsertMemberName(const Dwarf_Unsigned &offset, const std::string &name) {
-  member_names_[offset].push_back(name);
-}
-
-void UserDefinedType::InsertMemberType(const Dwarf_Unsigned &offset, std::shared_ptr<Type> &type) {
-  member_types_[offset].push_back(type);
-}
-
 /* public interface */
-auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die) -> std::shared_ptr<Type> {
+auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die) -> TypeRef {
   return ParseTypeDieInternal(dbg, var_die, false, 0);
 }
 
@@ -145,7 +46,7 @@ auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die) -> std::shared_ptr<T
  * @param level
          the pointer level
  * @return
-         std::shared_ptr<Type> the type info
+         TypeRef the type info
  *       ,nullptr if failed
  */
 auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level) -> TypeRef {
@@ -215,46 +116,31 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
     /* when program reach here, it means void type, void * , void ** ... */
     type_name_str = "void";
     byte_size = 8;
-    return std::make_shared<BasesType>(type_name_str, byte_size, is_pointer, level);
+    return std::make_shared<BaseType>(type_name_str, byte_size, is_pointer, level);
   }
 
   if (tag == DW_TAG_base_type) {
-    return std::make_shared<BasesType>(type_name_str, byte_size, is_pointer, level);
+    return std::make_shared<BaseType>(type_name_str, byte_size, is_pointer, level);
   } else if (tag == DW_TAG_structure_type) {
     /*
     if the struct has not been record, tells that the struct member type die is defined
-    behind the current struct
-    for example,
+    behind the current struct. for example:
     struct A;
     struct B{struct A * sa_;};
     struct A{int a_;};
     in this situation, the A die in dwarf will behind B, so when parse B's member
     sa_, there has not a record, so here we need to parse the A struct first
+    and when encount anoymous struct, beacuse we can not save it, so we need to parse it first
     */
     if (struct_infos_.count(type_name_str) == 0U) {
       std::cout << "type name: " << type_name_str << " not found, parse it first\n";
-      ParseStructType(dbg, type_die);
+      return ParseStructType(dbg, type_die);
     } else {
       std::cout << "type name: " << type_name_str << " found\n";
+      return struct_infos_[type_name_str];
     }
-    auto it = struct_infos_.find(type_name_str);
-    /* user defined struct */
-    auto &type_ptr = it->second;
-    /* dynamic cast to user defined type */
-    auto struct_ptr = std::dynamic_pointer_cast<UserDefinedType>(type_ptr);
-    VARVIEWER_ASSERT(struct_ptr != nullptr, "dynamic cast to user defined type failed");
-    return std::make_shared<UserDefinedType>(type_name_str, byte_size, is_pointer, level, UserDefined::STRUCT,
-                                             struct_ptr->GetMemberOffsets(), struct_ptr->GetMemberNames(),
-                                             struct_ptr->GetMemberTypes());
-  } else if (tag == DW_TAG_union_type) {
-    auto type_info = ParseUnionType(dbg, type_die);
-    auto union_type_info = std::dynamic_pointer_cast<UserDefinedType>(type_info);
-    /* union */
-    if (union_type_info != nullptr) {
-      return std::make_shared<UserDefinedType>(type_name_str, byte_size, is_pointer, level, UserDefined::UNION,
-                                               union_type_info->GetMemberOffsets(), union_type_info->GetMemberNames(),
-                                               union_type_info->GetMemberTypes());
-    }
+  } else if (tag == DW_TAG_union_type) { /* union */
+    return ParseUnionType(dbg, type_die);
   }
   return nullptr;
 }
@@ -271,7 +157,7 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
          std::shared_ptr<StructType> the struct type info
  *       ,nullptr if failed
  */
-void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
+auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   std::cout << "\n\033[1;32mparse struct type\033[0m\n";
   Dwarf_Error err;
   Dwarf_Unsigned byte_size;
@@ -286,34 +172,36 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
   if (res == DW_DLV_OK) {
     if (struct_infos_.count(std::string(name)) != 0U) {
       std::cout << "Struct " << name << " has been recorded\n";
-      return;
+      return struct_infos_[std::string(name)];
     }
     /* placeholder first, avoid endless recur when the struct has member which type is itself */
-    struct_infos_[std::string(name)] = struct_type_info;
+    std::string name_str = std::string(name);
+    struct_infos_[name_str] = struct_type_info;
     printf("struct name: %s;\t", name);
-    struct_type_info->type_name_ = std::string(name);
+    struct_type_info->SetTypeName(name_str);
   } else {
     struct_type_info->type_name_ = "";
   }
 
   res = dwarf_hasattr(struct_die, DW_AT_byte_size, &has_byte_size, &err);
   if (!has_byte_size) {
-    return;
+    byte_size = 8;
   }
   res = dwarf_bytesize(struct_die, &byte_size, &err);
   if (res != DW_DLV_OK) {
-    return;
+    byte_size = 8;
   }
-  struct_type_info->size_ = byte_size;
+  struct_type_info->SetTypeSize(byte_size);
   if (dwarf_child(struct_die, &child_die, &err) != DW_DLV_OK) {
     /* has no member */
-    return;
+    struct_infos_[struct_type_info->GetTypeName()] = struct_type_info;
+    return struct_type_info;
   }
   /* traverse all the DW_TAG_member */
   do { /* get DW_AT_data_member_location attr */
     res = dwarf_attr(child_die, DW_AT_data_member_location, &offset_attr, &err);
     if (res != DW_DLV_OK) {
-      return;
+      return struct_type_info;
     }
     /* get member name */
     char *member_name;
@@ -343,13 +231,14 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
   /* save struct info, if anoymous, do not save */
-  if (struct_type_info->type_name_ != "anonymous") {
+  if (struct_type_info->type_name_ != "") {
     struct_infos_[struct_type_info->GetTypeName()] = struct_type_info;
     std::cout << " struct " << struct_type_info->GetTypeName() << " saved\n";
   } else {
     std::cout << " struct anonymous parsed\n";
   }
   dwarf_dealloc_attribute(offset_attr);
+  return struct_type_info;
 }
 
 /**
@@ -361,7 +250,7 @@ void Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) {
  * @param struct_die
          the union die interested
  * @return
-         std::shared_ptr<Type> the union type info
+         TypeRef the union type info
  *       ,nullptr if failed
  */
 auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
@@ -374,12 +263,12 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   char *name = nullptr;
   int res;
   res = get_name(dbg, union_die, &name);
-  // nested union may not have name
+  /* some union may not have name */
   if (res == DW_DLV_OK) {
     printf("union name: %s;\t", name);
-    union_type_info->type_name_ = std::string(name);
+    union_type_info->SetTypeName(std::string(name));
   } else {
-    union_type_info->type_name_ = "";
+    union_type_info->SetTypeName("");
   }
   res = dwarf_hasattr(union_die, DW_AT_byte_size, &has_byte_size, &err);
   if (!has_byte_size) {
@@ -415,6 +304,102 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
   return union_type_info;
+}
+
+/* Type:: etter and setter */
+auto Type::GetTypeName() const -> const std::string & { return type_name_; }
+
+void Type::SetTypeName(const std::string &type_name) { type_name_ = type_name; }
+
+auto Type::GetTypeSize() const -> const Dwarf_Unsigned & { return size_; }
+
+void Type::SetTypeSize(const Dwarf_Unsigned &size) { size_ = size; }
+
+auto Type::IsPointer() const -> bool { return is_pointer_; }
+
+void Type::SetIsPointer(const bool &is_pointer) { is_pointer_ = is_pointer; }
+
+auto Type::GetPointerLevel() const -> size_t { return pointer_level_; }
+
+void Type::SetPointerLevel(const size_t &pointer_level) { pointer_level_ = pointer_level; }
+/* end of Type::getter and setter */
+
+BaseType::BaseType(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer,
+                   const size_t &pointer_level)
+    : Type(type_name, size, is_pointer, pointer_level) {}
+
+BaseType::BaseType(const BaseType &base_type) : Type(base_type) {}
+
+auto BaseType::IsUserDefined() const -> bool { return false; }
+
+UserDefinedType::UserDefinedType(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer,
+                                 const size_t &level, const UserDefined &user_defined_type,
+                                 const std::list<Dwarf_Unsigned> &member_offsets,
+                                 const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> &member_names,
+                                 const std::unordered_map<Dwarf_Unsigned, std::vector<TypeRef>> &member_types)
+    : Type(type_name, size, is_pointer, level),
+      user_defined_type_(user_defined_type),
+      member_offsets_(member_offsets),
+      member_names_(member_names),
+      member_types_(member_types) {}
+
+UserDefinedType::UserDefinedType(const UserDefinedType &user_defined_type)
+    : Type(user_defined_type),
+      user_defined_type_(user_defined_type.user_defined_type_),
+      member_offsets_(user_defined_type.member_offsets_),
+      member_names_(user_defined_type.member_names_),
+      member_types_(user_defined_type.member_types_) {}
+
+/* UserDefinedType::getter and setter */
+auto UserDefinedType::IsUserDefined() const -> bool { return true; }
+
+auto UserDefinedType::GetUserDefinedType() const -> UserDefined {
+  VARVIEWER_ASSERT(user_defined_ == true, "Get user defined type for not a user defined type");
+  return user_defined_type_;
+}
+
+void UserDefinedType::SetUserDefinedType(const UserDefined &user_defined_type) {
+  VARVIEWER_ASSERT(user_defined_ == true, "Set user defined type for not a user defined type");
+  user_defined_type_ = user_defined_type;
+}
+
+auto UserDefinedType::GetMemberOffsets() const -> const std::list<Dwarf_Unsigned> & { return member_offsets_; }
+
+void UserDefinedType::SetMemberOffsets(const std::list<Dwarf_Unsigned> &member_offsets) {
+  member_offsets_ = member_offsets;
+}
+
+auto UserDefinedType::GetMemberTypes() const -> const std::unordered_map<Dwarf_Unsigned, std::vector<TypeRef>> & {
+  return member_types_;
+}
+
+void UserDefinedType::SetMemberTypes(const std::unordered_map<Dwarf_Unsigned, std::vector<TypeRef>> &member_types) {
+  member_types_ = member_types;
+}
+
+auto UserDefinedType::GetMemberNames() const -> const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> & {
+  return member_names_;
+}
+
+void UserDefinedType::SetMemberNames(const std::unordered_map<Dwarf_Unsigned, std::vector<std::string>> &member_names) {
+  member_names_ = member_names;
+}
+/* end of UserDefinedType::getter and setter */
+
+void UserDefinedType::InsertOffset(const Dwarf_Unsigned &offset) {
+  /* one offset should only record once, and need to check empty first */
+  if (!member_offsets_.empty() && member_offsets_.back() == offset) {
+    return;
+  }
+  member_offsets_.push_back(offset);
+}
+
+void UserDefinedType::InsertMemberName(const Dwarf_Unsigned &offset, const std::string &name) {
+  member_names_[offset].push_back(name);
+}
+
+void UserDefinedType::InsertMemberType(const Dwarf_Unsigned &offset, TypeRef &type) {
+  member_types_[offset].push_back(type);
 }
 
 }  // namespace varviewer
