@@ -5,8 +5,8 @@
 
 #include <stack>
 
-#include "Address.h"
-#include "Expression.h"
+#include "address.h"
+#include "expression.h"
 #include "ranges.h"
 
 namespace varviewer {

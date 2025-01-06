@@ -4,9 +4,9 @@
 
 #include <vector>
 
-#include "Address.h"
-#include "Evaluator.h"
-#include "Expression.h"
+#include "address.h"
+#include "evaluator.h"
+#include "expression.h"
 #include "util.h"
 namespace varviewer {
 

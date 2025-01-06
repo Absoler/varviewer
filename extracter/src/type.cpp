@@ -223,6 +223,12 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
     //   std::cout << "member type is itself\t";
     //   member_type_info = nullptr;
     // }
+
+    /* if member type is itself, we treat it as base type */
+    if (member_type_info != nullptr && member_type_info->GetTypeName() == struct_type_info->GetTypeName()) {
+      member_type_info = std::make_shared<BaseType>(member_type_info->GetTypeName(), member_type_info->GetTypeSize(),
+                                                    member_type_info->IsPointer(), member_type_info->GetPointerLevel());
+    }
     /* save */
     struct_type_info->InsertOffset(offset_in_struct);
     struct_type_info->InsertMemberName(offset_in_struct, member_name_str);
@@ -330,7 +336,9 @@ BaseType::BaseType(const std::string &type_name, const Dwarf_Unsigned &size, con
 
 BaseType::BaseType(const BaseType &base_type) : Type(base_type) {}
 
-auto BaseType::IsUserDefined() const -> bool { return false; }
+auto BaseType::IsUserDefined() const -> bool { return user_defined_; }
+
+void BaseType::SetUserDefined(const bool &user_defined) { user_defined_ = user_defined; }
 
 UserDefinedType::UserDefinedType(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer,
                                  const size_t &level, const UserDefined &user_defined_type,
@@ -351,7 +359,7 @@ UserDefinedType::UserDefinedType(const UserDefinedType &user_defined_type)
       member_types_(user_defined_type.member_types_) {}
 
 /* UserDefinedType::getter and setter */
-auto UserDefinedType::IsUserDefined() const -> bool { return true; }
+auto UserDefinedType::IsUserDefined() const -> bool { return user_defined_; }
 
 auto UserDefinedType::GetUserDefinedType() const -> UserDefined {
   VARVIEWER_ASSERT(user_defined_ == true, "Get user defined type for not a user defined type");

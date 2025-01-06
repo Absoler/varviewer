@@ -1,12 +1,12 @@
 
-#include "include/Address.h"
+#include "include/address.h"
 
 #include <libdwarf-0/libdwarf.h>
 
 #include <cstdio>
 #include <string>
 
-#include "include/Expression.h"
+#include "include/expression.h"
 using namespace std;
 
 namespace varviewer {

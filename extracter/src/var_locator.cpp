@@ -1,4 +1,4 @@
-#include "include/varLocator.h"
+#include "include/var_locator.h"
 #include <fcntl.h>
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
@@ -11,7 +11,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
-#include "include/Address.h"
+#include "include/address.h"
 #include "include/type.h"
 #include "include/util.h"
 
@@ -122,6 +122,7 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
           the struct's type info
  */
 void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type_info) {
+  std::cout << "in output json for members\n";
   if (type_info == nullptr || !type_info->IsUserDefined()) {
     return;
   }
@@ -173,10 +174,14 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
       jsonOut << memberJsonStr;
       jsonOut.flush();
 
-      // Recur if the member is also a user-defined struct or union
-      if (member_type_info && member_type_info->IsUserDefined()) {
-        OutputJsonForMembers(member_addr, member_type_info);
-      }
+      /*
+      considering the efficiency, we do not output the member's member recursively now
+      */
+
+      // // Recur if the member is also a user-defined struct or union
+      // if (member_type_info && member_type_info->IsUserDefined()) {
+      //   OutputJsonForMembers(member_addr, member_type_info);
+      // }
     }
   }
 }

@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 
-#include "Expression.h"
-#include "jsonUtil.h"
+#include "expression.h"
+#include "json_util.h"
 #include "type.h"
 
 namespace varviewer {

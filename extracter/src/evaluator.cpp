@@ -1,4 +1,4 @@
-#include "include/Evaluator.h"
+#include "include/evaluator.h"
 
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
@@ -11,11 +11,11 @@
 #include <memory>
 #include <stack>
 
-#include "include/Address.h"
-#include "include/Expression.h"
+#include "include/address.h"
+#include "include/expression.h"
 #include "include/frame.h"
 #include "include/util.h"
-#include "include/varLocator.h"
+#include "include/var_locator.h"
 
 namespace varviewer {
 Evaluator tempEvaluator;
@@ -538,14 +538,14 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
 
       } else if (op == DW_OP_fbreg) {
         /*
-            DW_OP_fbreg表示这个变量的地址计算方式为栈基址 cfa + offset
+           DW_OP_fbreg indicates this variable's address is calculated by cfa + offset
         */
         VARVIEWER_ASSERT(arg.argType != ArgType::ArgBlockType, "Error,Dw_OP_fbreg can not operate on block");
         tempEvaluator.dbg_ = dbg_;
 
         /* frame base may be loc list, seldomly. if yes, we choose the one whose range cover `addrExp` */
         int list_id = 0;
-        VARVIEWER_ASSERT(framebase.addrs_.size() >= 1, "Error, has no frame base record");
+        // VARVIEWER_ASSERT(framebase.addrs_.size() >= 1, "Error, has no frame base record");
         if (framebase.addrs_.size() > 1) {
           for (unsigned i = 0; i < framebase.addrs_.size(); i++) {
             if (framebase.addrs_[i].startpc_ <= addrExp.startpc_ && addrExp.endpc_ <= framebase.addrs_[i].endpc_) {

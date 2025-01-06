@@ -1,7 +1,8 @@
 #pragma once
 #include <memory>
-#include "Address.h"
-#include "Expression.h"
+#include <unordered_set>
+#include "address.h"
+#include "expression.h"
 #include "json.hpp"
 #include "type.h"
 class Address;
@@ -85,6 +86,6 @@ json createJsonforExpression(const Expression &exp);
       }
   }
 */
-json createJsonForType(const std::shared_ptr<Type> &type);
+json createJsonForType(const std::shared_ptr<Type> &type, std::unordered_set<std::string> &visited);
 
 }  // namespace varviewer

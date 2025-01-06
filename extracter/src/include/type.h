@@ -90,6 +90,8 @@ class BaseType : public Type {
 
   virtual auto IsUserDefined() const -> bool override;
 
+  void SetUserDefined(const bool &user_defined);
+
   ~BaseType() = default;
 
  private:

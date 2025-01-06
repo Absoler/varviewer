@@ -5,9 +5,9 @@
 #include <iostream>
 #include <vector>
 
-#include "include/Address.h"
-#include "include/Evaluator.h"
-#include "include/Expression.h"
+#include "include/address.h"
+#include "include/evaluator.h"
+#include "include/expression.h"
 #include "include/util.h"
 
 namespace varviewer {

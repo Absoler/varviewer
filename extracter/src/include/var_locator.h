@@ -5,10 +5,10 @@
 #include <memory>
 #include <ostream>
 
-#include "Address.h"
-#include "Evaluator.h"
+#include "address.h"
+#include "evaluator.h"
 #include "frame.h"
-#include "jsonUtil.h"
+#include "json_util.h"
 #include "ranges.h"
 #include "statistics.h"
 #include "type.h"
