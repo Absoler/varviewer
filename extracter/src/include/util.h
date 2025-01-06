@@ -43,6 +43,9 @@ assert
     }                                                      \
   } while (0)
 
+/* print func name */
+#define PRINT_FUNCTION_NAME() std::cout << "\033[1;35mCurrently in function: " << __func__ << "\033[0m" << "\n";
+
 // translated as unsigned, convert to signed if need
 Dwarf_Unsigned get_const_u(Dwarf_Half form, Dwarf_Attribute attr, Dwarf_Error *err);
 

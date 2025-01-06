@@ -4,12 +4,8 @@
 
 #include <cassert>
 #include <cmath>
-#include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
-#include <ios>
-#include <iostream>
 #include <string>
 
 namespace varviewer {
@@ -28,8 +24,8 @@ Expression::Expression(const Expression &exp) {
   mem_size_ = exp.mem_size_;
   sign_ = exp.sign_;
   hasChild_ = exp.hasChild_;
-  sub1_ = exp.sub1_ ? std::make_shared<Expression>(*exp.sub1_) : nullptr;  
-  sub2_ = exp.sub2_ ? std::make_shared<Expression>(*exp.sub2_) : nullptr;  
+  sub1_ = exp.sub1_ ? std::make_shared<Expression>(*exp.sub1_) : nullptr;
+  sub2_ = exp.sub2_ ? std::make_shared<Expression>(*exp.sub2_) : nullptr;
   op_ = exp.op_;
   isCFA_ = exp.isCFA_;
 }

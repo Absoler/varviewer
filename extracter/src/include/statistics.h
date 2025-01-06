@@ -5,7 +5,7 @@
 #include <vector>
 
 namespace varviewer {
-// 更详细的变量类型
+// more detailed type of dwarf type
 enum DetailedDwarfType {
   INVALID = -1,
 

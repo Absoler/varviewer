@@ -25,7 +25,7 @@ class AddressExp : public Expression {
 
   AddressExp(DwarfType type);
 
-  AddressExp(const AddressExp &addrexp) = default;
+  AddressExp(const AddressExp &addrexp);
 
   // no reset startpc and endpc now
   void ResetData();

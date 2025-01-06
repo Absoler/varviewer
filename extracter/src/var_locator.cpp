@@ -55,7 +55,7 @@ Statistics statistics{};
  */
 int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range range, char *name,
                   const std::shared_ptr<Type> &type_info) {
-  std::cout << "in test evaluator\n";
+  PRINT_FUNCTION_NAME();
   int res;
   Dwarf_Error err;
 
@@ -122,7 +122,7 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
           the struct's type info
  */
 void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type_info) {
-  std::cout << "in output json for members\n";
+  PRINT_FUNCTION_NAME();
   if (type_info == nullptr || !type_info->IsUserDefined()) {
     return;
   }
@@ -174,14 +174,10 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
       jsonOut << memberJsonStr;
       jsonOut.flush();
 
-      /*
-      considering the efficiency, we do not output the member's member recursively now
-      */
-
-      // // Recur if the member is also a user-defined struct or union
-      // if (member_type_info && member_type_info->IsUserDefined()) {
-      //   OutputJsonForMembers(member_addr, member_type_info);
-      // }
+      // Recur if the member is also a user-defined struct or union
+      if (member_type_info && member_type_info->IsUserDefined()) {
+        OutputJsonForMembers(member_addr, member_type_info);
+      }
     }
   }
 }
@@ -255,12 +251,13 @@ int TestDeclPos(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, char **dec
 
   Dwarf_Bool has_col = true;
   res = dwarf_hasattr(var_die, DW_AT_decl_column, &has_col, &err);
-  SIMPLE_HANDLE_ERR(res) if (has_col) {
+  SIMPLE_HANDLE_ERR(res);
+  if (has_col) {
     res = dwarf_attr(var_die, DW_AT_decl_column, &decl_col_attr, &err);
-    SIMPLE_HANDLE_ERR(res)
+    SIMPLE_HANDLE_ERR(res);
 
     res = dwarf_formudata(decl_col_attr, decl_col, &err);
-    SIMPLE_HANDLE_ERR(res)
+    SIMPLE_HANDLE_ERR(res);
   }
   dwarf_dealloc_attribute(decl_file_attr);
   dwarf_dealloc_attribute(decl_row_attr);

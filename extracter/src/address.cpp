@@ -13,6 +13,18 @@ namespace varviewer {
 
 AddressExp::AddressExp(DwarfType type) : dwarfType_(type) {}
 
+AddressExp::AddressExp(const AddressExp &addrexp)
+    : Expression(addrexp),
+      piece_(addrexp.piece_),
+      dwarfType_(addrexp.dwarfType_),
+      detailedDwarfType_(addrexp.detailedDwarfType_),
+      reg_(addrexp.reg_),
+      startpc_(addrexp.startpc_),
+      endpc_(addrexp.endpc_),
+      needCFA_(addrexp.needCFA_),
+      cfa_pcs_(addrexp.cfa_pcs_),
+      cfa_values_(addrexp.cfa_values_) {}
+
 void AddressExp::ResetData() {
   Expression::Reset();
   dwarfType_ = DwarfType::MEMORY;

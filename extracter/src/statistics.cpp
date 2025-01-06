@@ -88,7 +88,7 @@ DetailedDwarfType Statistics::solveOneExpr() {
     }
     res = DetailedDwarfType::IMPLICIT;
   }
-  // 清空ops_
+  // clear ops_
   {
     std::vector<Dwarf_Small> tmp;
     ops_.swap(tmp);

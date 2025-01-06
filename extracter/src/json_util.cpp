@@ -118,7 +118,7 @@ json createJsonforAddressExp(const AddressExp &addrexp) {
 }
 
 json createJsonforAddress(const Address &addr) {
-  std::cout << "in createJsonforAddress\n";
+  PRINT_FUNCTION_NAME();
   /*
       {
           "addrExps" : [
@@ -165,11 +165,11 @@ json createJsonforAddress(const Address &addr) {
   }
 */
 nlohmann::json createJsonForType(const std::shared_ptr<Type> &type, std::unordered_set<std::string> &visited) {
+  PRINT_FUNCTION_NAME();
   nlohmann::json res;
   if (type == nullptr) {
     return res;
   }
-  std::cout << "in createJsonForType, type name: " << type->GetTypeName() << "\n";
   res["typeName"] = type->GetTypeName();
   res["size"] = type->GetTypeSize();
   res["userDefined"] = type->IsUserDefined();
@@ -183,7 +183,6 @@ nlohmann::json createJsonForType(const std::shared_ptr<Type> &type, std::unorder
   }
   // If the type is user-defined, include member information
   if (type->IsUserDefined()) {
-    std::cout << "type is user defined\n";
     auto user_defined_type = std::dynamic_pointer_cast<UserDefinedType>(type);
     VARVIEWER_ASSERT(user_defined_type != nullptr, "Cast to user-defined type failed");
     res["userDefinedType"] = user_defined_type->GetUserDefinedType() == UserDefined::STRUCT ? "Struct" : "Union";
@@ -215,7 +214,6 @@ nlohmann::json createJsonForType(const std::shared_ptr<Type> &type, std::unorder
       // Iterate through the members at the current offset
       nlohmann::json members_at_offset = nlohmann::json::array();
       for (size_t i = 0; i < names.size(); ++i) {
-        std::cout << "member name: " << names[i] << "\n";
         nlohmann::json member_info = nlohmann::json::object();
         member_info["memberName"] = names[i];
         member_info["type"] = createJsonForType(types[i], visited);  // Recursive call

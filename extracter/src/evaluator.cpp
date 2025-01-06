@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
+#include <ios>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -333,10 +334,7 @@ Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, R
     res.valid_ = false;
     std::cout << "loc form unvalid\n";
   } else {
-    /*
-    获取location list(描述对象生命周期会变的) 或者 location expression
-    对于location expression,count为1
-    */
+    /* get location expression information */
     ret = dwarf_get_loclist_c(loc_attr, &loclist_head, &locentry_count, &err);
   }
 
@@ -351,16 +349,18 @@ Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, R
 }
 
 /*
- 解析location list 或者 single location description
- single location description描述生命周期固定，或者声明周期与拥有其的block subprogram一致的对象
- single location description有可能是一条，也有可能是多条
- location list描述在生命周期内位置会变的对象
- 返回一个address对象 , address中可能包含多个addr_exp对象(取决于location description的数量)
-*/
+ *  parse location list or location expression
+ *  location expression is a single location description, which describes an object whose lifetime is fixed or
+ *  whose lifetime is consistent with the block subprogram that owns it
+ *  a single location description may be one or more
+ *  location list describes an object whose position changes during its lifetime
+ *  return an address object, which may contain multiple addr_exp objects (depending on the number of location
+ *  descriptions)
+ */
 Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_count, const ArgLocation &arg) {
   int ret;
   Dwarf_Error err;
-  Address res;
+  Address res{};
 
   for (Dwarf_Unsigned i = 0; i < locentry_count; i++) {
     Dwarf_Small lkind = 0, lle_value = 0;
@@ -388,9 +388,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
       continue;
     }
 
-    std::cout << "location expression operand_count:" << locexpr_op_count << "\n";
-
-    // 每一个location operation生成一个addrExp
+    // every location operation generate an addrExp
     AddressExp addrExp{};
 
     if (arg.argType == ArgType::ArgVarType) {
@@ -398,7 +396,6 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
       // block parsing don't need code range
       Dwarf_Half loc_form = arg.argvar.loc_form_;
       Range range = arg.argvar.range_;
-
       if (!debug_addr_unavailable) {
         addrExp.startpc_ = cooked_lopc;
         addrExp.endpc_ = cooked_hipc;
@@ -418,7 +415,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
       addrExp.endpc_ = range.endpc;
     }
 
-    //清空栈
+    // clear stack
     InitStack();
     VARVIEWER_ASSERT(stk_.empty(), "Error, stack is not empty");
     Dwarf_Small op = 0;
@@ -430,7 +427,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
     std::map<Dwarf_Unsigned, Dwarf_Unsigned> offset_to_index;
 
     for (Dwarf_Unsigned j = 0; j < locexpr_op_count; j++) {
-      // 获取location operation的操作数值
+      // get the operand value of location operation
       ret = dwarf_get_location_op_value_c(locentry, j, &op, &op1, &op2, &op3, &offsetForBranch, &err);
       if (ret != DW_DLV_OK) {
       }
@@ -444,20 +441,20 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
       statistics.addOp(op);
       std::cout << "op : " << static_cast<int>(op) << "\n";
       if ((op >= DW_OP_reg0 && op <= DW_OP_reg31) || op == DW_OP_regx) {
-        // 存储在寄存器中
+        // save in reg
         addrExp.dwarfType_ = DwarfType::REGISTER;
-        // 寄存器编号
+        addrExp.valid_ = true;
+        // reg num
         addrExp.reg_ = (op == DW_OP_regx ? op1 : op - DW_OP_reg0);
-
       } else if (op == DW_OP_implicit_value || op == DW_OP_stack_value) {
         addrExp.dwarfType_ = DwarfType::VALUE;
-        // 立即数
+        // implicit value
         if (op == DW_OP_implicit_value) {
           if (op1 > 8) {
             // how to deal with LEB128 coding with size > 8?
           }
           addrExp.offset_ = op2;
-          // 对象不在内存，但它的值在DWARF表达式栈顶
+          // the object is not in memory, but its value is on the top of the DWARF expression stack
         } else if (op == DW_OP_stack_value) {
           if (stk_.empty()) {
             addrExp.valid_ = false;
@@ -465,7 +462,6 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
           } else
             addrExp.SetFromExp(stk_.top());
         }
-
       } else if (op == DW_OP_piece) {
         // deal with piece case
         if (!last_is_piece) {
@@ -498,14 +494,13 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
         exp.valid_ = false;
         stk_.push(exp);
 
-      } else if (op == DW_OP_bra || op == DW_OP_skip) {
-        /* operate control flow
-         */
+      } else if (op == DW_OP_bra || op == DW_OP_skip) { /* operate control flow */
 
       } else if (op == DW_OP_call_frame_cfa) {
-        // DW_OP_call_frame_cfa将cfa value压到栈上，从CFI获取到
-        // 描述的是这个函数的基址,一般出现在DW_AT_subprogram
-        /*  get current `cfa` value, we postpone it
+        /*
+            DW_OP_call_frame_cfa push cfa value to stack, get it from CFI indicate the base of the current function,
+            occurs in DW_TAG_subprogram
+            get current `cfa` value, we postpone it
             until the match time to decide which.
             now we just bring enough of them
         */
@@ -525,12 +520,10 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
         VARVIEWER_ASSERT(cfa_pcs.size() == cfa_values.size(),
                          "error, the pc and cfa value do not one to one correspond");
 
-        // 找到第一个大于start_pc的位置
+        // find the first element that is greater than start_pc
         int startid = std::upper_bound(cfa_pcs.begin(), cfa_pcs.end(), addrExp.startpc_) - cfa_pcs.begin() - 1;
-        // 找到第一个大于等于end_pc的位置
+        // find the first element that is greater than or equal to  end_pc
         int endid = std::lower_bound(cfa_pcs.begin(), cfa_pcs.end(), addrExp.endpc_) - cfa_pcs.begin() - 1;
-        std::cout << "start id : " << startid << "\n";
-        std::cout << "end id : " << endid << "\n";
         for (int i = startid; i <= endid; ++i) {
           addrExp.cfa_pcs_.push_back(cfa_pcs[i]);
           addrExp.cfa_values_.push_back(cfa_values[i]);
@@ -543,6 +536,15 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
         VARVIEWER_ASSERT(arg.argType != ArgType::ArgBlockType, "Error,Dw_OP_fbreg can not operate on block");
         tempEvaluator.dbg_ = dbg_;
 
+        /*
+         currently, when encountering the subprogram without low_pc and high_pc, we can't get the range of the
+         subprogram,so the framebase can't be used, just break here
+         (maybe fix it in the future,aka to get the range of the subprogram)
+        */
+        if (framebase.addrs_.size() == 0) {
+          addrExp.valid_ = false;
+          break;
+        }
         /* frame base may be loc list, seldomly. if yes, we choose the one whose range cover `addrExp` */
         int list_id = 0;
         // VARVIEWER_ASSERT(framebase.addrs_.size() >= 1, "Error, has no frame base record");
@@ -605,8 +607,8 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
     }
 
     if (!last_is_piece) {
-      // 获取详细变量信息
       addrExp.detailedDwarfType_ = statistics.solveOneExpr();
+      std::cout << "push back addrExp\n";
       res.addrs_.push_back(addrExp);
     }
   }
