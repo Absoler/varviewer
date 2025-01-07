@@ -15,6 +15,7 @@
 #include "include/address.h"
 #include "include/expression.h"
 #include "include/frame.h"
+#include "include/logger.h"
 #include "include/util.h"
 #include "include/var_locator.h"
 
@@ -342,7 +343,7 @@ Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, R
     res.valid_ = false;
     return res;
   }
-  std::cout << "location description count:" << locentry_count << "\n";
+  LOG_DEBUG("location description count:%llu", locentry_count);
   ArgLocation arg(range, loc_form);
   res = ParseLoclist(loclist_head, locentry_count, arg);
   return res;
@@ -373,7 +374,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
     Dwarf_Unsigned expression_offset = 0;
     Dwarf_Unsigned locdesc_offset = 0;
 
-    //获取location expression 信息
+    // get location description information
     ret = dwarf_get_locdesc_entry_d(loclist_head, i, &lle_value, &raw_lopc, &raw_hipc, &debug_addr_unavailable,
                                     &cooked_lopc, &cooked_hipc, &locexpr_op_count, &locentry, &lkind,
                                     &expression_offset, &locdesc_offset, &err);
@@ -392,7 +393,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
     AddressExp addrExp{};
 
     if (arg.argType == ArgType::ArgVarType) {
-      std::cout << "argtype == argVarType\n";
+      LOG_DEBUG("argType is ArgVarType");
       // block parsing don't need code range
       Dwarf_Half loc_form = arg.argvar.loc_form_;
       Range range = arg.argvar.range_;
@@ -439,7 +440,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
 
       offset_to_index[offsetForBranch] = j;
       statistics.addOp(op);
-      std::cout << "op : " << static_cast<int>(op) << "\n";
+      LOG_DEBUG("op : %d", static_cast<int>(op));
       if ((op >= DW_OP_reg0 && op <= DW_OP_reg31) || op == DW_OP_regx) {
         // save in reg
         addrExp.dwarfType_ = DwarfType::REGISTER;
@@ -567,12 +568,10 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
         if (fb.dwarfType_ == DwarfType::REGISTER) {
           fbreg.reg_scale_[fb.reg_] += 1;
         }
-        std::cout << "op1 : " << op1 << "\n";
         fbreg.offset_ += op1;
         stk_.push(fbreg);
 
       } else {
-        std::cout << "in else\n";
         // indirect addressing
         // operate the stack
         ret = ExecOperation(op, op1, op2, op3);
@@ -608,7 +607,6 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
 
     if (!last_is_piece) {
       addrExp.detailedDwarfType_ = statistics.solveOneExpr();
-      std::cout << "push back addrExp\n";
       res.addrs_.push_back(addrExp);
     }
   }

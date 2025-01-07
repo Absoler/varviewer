@@ -11,6 +11,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <unordered_set>
 #include "include/address.h"
 #include "include/type.h"
 #include "include/util.h"
@@ -101,7 +102,8 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
 
     /* for every member of the struct, output the a addr json( if has ) */
     if (type_info && type_info->IsUserDefined()) {
-      OutputJsonForMembers(addr, addr.type_info_);
+      std::unordered_set<std::string> processed_type_names;
+      OutputJsonForMembers(addr, addr.type_info_, processed_type_names);
     }
   } else {
     addr.Output();
@@ -121,12 +123,27 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
  * @param type_info
           the struct's type info
  */
-void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type_info) {
-  PRINT_FUNCTION_NAME();
+
+void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type_info,
+                          std::unordered_set<std::string> &processed_type_names) {
+  // Skip if the type is null or not user-defined
   if (type_info == nullptr || !type_info->IsUserDefined()) {
     return;
   }
+
+  // If the type has already been processed, return early
+  if (processed_type_names.find(type_info->GetTypeName()) != processed_type_names.end()) {
+    return;
+  }
+
+  // Mark this type as processed by its type name
+  if (type_info->IsUserDefined() && type_info->GetTypeName() != "") {
+    processed_type_names.insert(type_info->GetTypeName());
+  }
+
+  // Cast to UserDefinedType to handle struct or union
   auto user_defined_type_info = std::dynamic_pointer_cast<UserDefinedType>(type_info);
+
   // Get members' offsets, names, and types
   const auto &member_offsets = user_defined_type_info->GetMemberOffsets();
   const auto &member_names = user_defined_type_info->GetMemberNames();
@@ -141,6 +158,8 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
     const auto &types = member_types.at(offset);
     VARVIEWER_ASSERT(names.size() == types.size(),
                      "Mismatched member names and types at offset " + std::to_string(offset));
+
+    // Iterate through each member of the struct
     for (size_t i = 0; i < names.size(); ++i) {
       const std::string &member_name = names[i];
       const std::shared_ptr<Type> &member_type_info = types[i];
@@ -176,7 +195,7 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
 
       // Recur if the member is also a user-defined struct or union
       if (member_type_info && member_type_info->IsUserDefined()) {
-        OutputJsonForMembers(member_addr, member_type_info);
+        OutputJsonForMembers(member_addr, member_type_info, processed_type_names);
       }
     }
   }

@@ -4,6 +4,7 @@
 #include <libdwarf-0/libdwarf.h>
 #include <memory>
 #include <ostream>
+#include <unordered_set>
 
 #include "address.h"
 #include "evaluator.h"
@@ -20,7 +21,8 @@ extern Statistics statistics;
 int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range range, char *name,
                   const std::shared_ptr<Type> &type_info);
 
-void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type_info);
+void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type_info,
+                          std::unordered_set<std::string> &processed_type_names);
 
 int TestDeclPos(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, char **decl_file_name, Dwarf_Unsigned *decl_row,
                 Dwarf_Unsigned *decl_col, int indent);

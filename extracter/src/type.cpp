@@ -8,6 +8,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include "include/logger.h"
 #include "include/util.h"
 namespace varviewer {
 
@@ -133,10 +134,9 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
     and when encount anoymous struct, beacuse we can not save it, so we need to parse it first
     */
     if (struct_infos_.count(type_name_str) == 0U) {
-      std::cout << "type name: " << type_name_str << " not found, parse it first\n";
       return ParseStructType(dbg, type_die);
     } else {
-      std::cout << "type name: " << type_name_str << " found\n";
+      LOG_DEBUG("type %s found",type_name_str);
       return struct_infos_[type_name_str];
     }
   } else if (tag == DW_TAG_union_type) { /* union */
@@ -158,7 +158,7 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
  *       ,nullptr if failed
  */
 auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
-  std::cout << "\n\033[1;32mparse struct type\033[0m\n";
+  std::cout << "\n\033[1;32mParse Struct Type\033[0m\n";
   Dwarf_Error err;
   Dwarf_Unsigned byte_size;
   Dwarf_Bool has_byte_size = true;
@@ -171,16 +171,16 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   /* some struct may not have name */
   if (res == DW_DLV_OK) {
     if (struct_infos_.count(std::string(name)) != 0U) {
-      std::cout << "Struct " << name << " has been recorded\n";
+      LOG_DEBUG("struct %s has been recorded", name);
       return struct_infos_[std::string(name)];
     }
     /* placeholder first, avoid endless recur when the struct has member which type is itself */
     std::string name_str = std::string(name);
     struct_infos_[name_str] = struct_type_info;
-    printf("struct name: %s;\t", name);
+    LOG_DEBUG("struct name: %s;", name);
     struct_type_info->SetTypeName(name_str);
   } else {
-    struct_type_info->type_name_ = "";
+    struct_type_info->SetTypeName("");
   }
 
   res = dwarf_hasattr(struct_die, DW_AT_byte_size, &has_byte_size, &err);
@@ -216,7 +216,7 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
     /* get the member offser in struct */
     Dwarf_Unsigned offset_in_struct;
     res = dwarf_formudata(offset_attr, &offset_in_struct, &err);
-    std::cout << "struct member name : " << member_name_str << ";offset : " << offset_in_struct << ";\t";
+    LOG_DEBUG("struct member name : %s;offset : %llu;", member_name_str.c_str(), offset_in_struct);
     /* get the meber type info */
     auto member_type_info = Type::ParseTypeDie(dbg, child_die);
     // if (member_type_info->GetTypeName() == struct_type_info->GetTypeName()) {
@@ -225,7 +225,8 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
     // }
 
     /* if member type is itself, we treat it as base type */
-    if (member_type_info != nullptr && member_type_info->GetTypeName() == struct_type_info->GetTypeName()) {
+    if (member_type_info != nullptr && member_type_info->GetTypeName() != "" && struct_type_info->GetTypeName() != "" &&
+        member_type_info->GetTypeName() == struct_type_info->GetTypeName()) {
       member_type_info = std::make_shared<BaseType>(member_type_info->GetTypeName(), member_type_info->GetTypeSize(),
                                                     member_type_info->IsPointer(), member_type_info->GetPointerLevel());
     }
@@ -237,11 +238,11 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
   /* save struct info, if anoymous, do not save */
-  if (struct_type_info->type_name_ != "") {
+  if (struct_type_info->GetTypeName() != "") {
     struct_infos_[struct_type_info->GetTypeName()] = struct_type_info;
-    std::cout << " struct " << struct_type_info->GetTypeName() << " saved\n";
+    LOG_DEBUG(" struct %s saved", struct_type_info->GetTypeName().c_str());
   } else {
-    std::cout << " struct anonymous parsed\n";
+    LOG_DEBUG(" struct anonymous");
   }
   dwarf_dealloc_attribute(offset_attr);
   return struct_type_info;
@@ -260,6 +261,7 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
  *       ,nullptr if failed
  */
 auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
+  std::cout << "\033[34mParse Union Type\033[0m\n";
   Dwarf_Error err;
   Dwarf_Unsigned byte_size;
   Dwarf_Bool has_byte_size = true;
@@ -271,7 +273,7 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   res = get_name(dbg, union_die, &name);
   /* some union may not have name */
   if (res == DW_DLV_OK) {
-    printf("union name: %s;\t", name);
+    LOG_DEBUG("union name: %s;", name);
     union_type_info->SetTypeName(std::string(name));
   } else {
     union_type_info->SetTypeName("");
@@ -298,10 +300,15 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
     } else {
       member_name_str = std::string(member_name);
     }
-
+    LOG_DEBUG("union member name : %s;", member_name_str.c_str());
     /* get the meber type info */
     auto member_type_info = Type::ParseTypeDie(dbg, child_die);
-
+    /* same as struct logic */
+    if (member_type_info != nullptr && member_type_info->GetTypeName() != "" && union_type_info->GetTypeName() != " " &&
+        member_type_info->GetTypeName() == union_type_info->GetTypeName()) {
+      member_type_info = std::make_shared<BaseType>(member_type_info->GetTypeName(), member_type_info->GetTypeSize(),
+                                                    member_type_info->IsPointer(), member_type_info->GetPointerLevel());
+    }
     /* set the member offset to 0 because in union, the member offset is not important */
     union_type_info->InsertOffset(0);
     union_type_info->InsertMemberName(0, member_name_str);
