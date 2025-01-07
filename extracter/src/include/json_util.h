@@ -86,6 +86,6 @@ json createJsonforExpression(const Expression &exp);
       }
   }
 */
-json createJsonForType(const std::shared_ptr<Type> &type, std::unordered_set<std::string> &visited);
+json createJsonForType(const std::shared_ptr<Type> &type, std::unordered_set<std::string> &visited,const int &depth);
 
 }  // namespace varviewer

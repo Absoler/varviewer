@@ -20,11 +20,13 @@
 std::string jsonFileStr;
 std::ofstream jsonOut;
 std::string frameFileStr;
+
 int useJson = 1;
 bool printRawLoc = false;
 bool onlyComplex = false;
 bool printFDE = false;
 bool noTraverse = false;
+bool OutMemberInMember = false;
 
 // important variables
 bool isFirstJson = true;
@@ -33,6 +35,7 @@ bool isFirstJson = true;
 int varNoLocation = 0;
 
 namespace varviewer {
+
 /* a global sta */
 Statistics statistics{};
 
@@ -524,6 +527,8 @@ int main(int argc, char *argv[]) {
       ++i;
     } else if (strcmp(argv[i], "--no-traverse") == 0) {
       noTraverse = true;
+    } else if (strcmp(argv[i], "-omm") == 0) {
+      OutMemberInMember = true;
     }
   }
 
