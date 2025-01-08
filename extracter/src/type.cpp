@@ -19,6 +19,12 @@ std::unordered_map<std::string, TypeRef> Type::struct_infos_ = []() -> std::unor
   return ret;
 }();
 
+std::unordered_map<std::string, TypeRef> Type::union_infos = []() -> std::unordered_map<std::string, TypeRef> {
+  std::unordered_map<std::string, TypeRef> ret;
+  ret.reserve(1000);
+  return ret;
+}();
+
 Type::Type(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer,
            const size_t &pointer_level)
     : type_name_(type_name), size_(size), is_pointer_(is_pointer), pointer_level_(pointer_level) {}
@@ -133,14 +139,32 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
     sa_, there has not a record, so here we need to parse the A struct first
     and when encount anoymous struct, beacuse we can not save it, so we need to parse it first
     */
+    std::shared_ptr<Type> struct_type_info;
+    std::shared_ptr<UserDefinedType> struct_type_info_ptr;
     if (struct_infos_.count(type_name_str) == 0U) {
-      return ParseStructType(dbg, type_die);
+      struct_type_info = ParseStructType(dbg, type_die);
+      if (struct_type_info == nullptr) {
+        return nullptr;
+      }
+      struct_type_info_ptr = std::dynamic_pointer_cast<UserDefinedType>(struct_type_info);
     } else {
-      LOG_DEBUG("type %s found",type_name_str);
-      return struct_infos_[type_name_str];
+      LOG_DEBUG("type %s found", type_name_str.c_str());
+      struct_type_info_ptr = std::dynamic_pointer_cast<UserDefinedType>(struct_infos_[type_name_str]);
     }
+    return std::make_shared<UserDefinedType>(
+        type_name_str, byte_size, is_pointer, level, struct_type_info_ptr->GetUserDefinedType(),
+        struct_type_info_ptr->GetMemberOffsets(), struct_type_info_ptr->GetMemberNames(),
+        struct_type_info_ptr->GetMemberTypes());
   } else if (tag == DW_TAG_union_type) { /* union */
-    return ParseUnionType(dbg, type_die);
+    auto union_type_info = ParseUnionType(dbg, type_die);
+    if (union_type_info == nullptr) {
+      return nullptr;
+    }
+    auto union_type_info_ptr = std::dynamic_pointer_cast<UserDefinedType>(union_type_info);
+    return std::make_shared<UserDefinedType>(
+        type_name_str, byte_size, is_pointer, level, union_type_info_ptr->GetUserDefinedType(),
+        union_type_info_ptr->GetMemberOffsets(), union_type_info_ptr->GetMemberNames(),
+        union_type_info_ptr->GetMemberTypes());
   }
   return nullptr;
 }
@@ -164,7 +188,7 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   Dwarf_Bool has_byte_size = true;
   Dwarf_Die child_die;
   Dwarf_Attribute offset_attr;
-  auto struct_type_info = std::make_shared<UserDefinedType>();
+  auto struct_type_info = std::make_shared<UserDefinedType>(UserDefined::STRUCT);
   char *name = nullptr;
   int res;
   res = get_name(dbg, struct_die, &name);
@@ -244,6 +268,11 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   } else {
     LOG_DEBUG(" struct anonymous");
   }
+  /*
+  every time after parse a struct, clear the union info, because the union defined in each struct is different
+   but may have a same name, so need to clear
+  */
+  union_infos.clear();
   dwarf_dealloc_attribute(offset_attr);
   return struct_type_info;
 }
@@ -267,13 +296,19 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   Dwarf_Bool has_byte_size = true;
   Dwarf_Die child_die;
   Dwarf_Attribute offset_attr;
-  auto union_type_info = std::make_shared<UserDefinedType>();
+  auto union_type_info = std::make_shared<UserDefinedType>(UserDefined::UNION);
   char *name = nullptr;
   int res;
   res = get_name(dbg, union_die, &name);
   /* some union may not have name */
   if (res == DW_DLV_OK) {
+    if (union_infos.count(std::string(name)) != 0U) {
+      LOG_DEBUG("union %s has been recorded", name);
+      return union_infos[std::string(name)];
+    }
     LOG_DEBUG("union name: %s;", name);
+    std::string name_str = std::string(name);
+    union_infos[name_str] = union_type_info;
     union_type_info->SetTypeName(std::string(name));
   } else {
     union_type_info->SetTypeName("");
@@ -284,7 +319,7 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   } else {
     res = dwarf_bytesize(union_die, &byte_size, &err);
   }
-  union_type_info->size_ = byte_size;
+  union_type_info->SetTypeSize(byte_size);
   if (dwarf_child(union_die, &child_die, &err) != DW_DLV_OK) {
     /* has no member */
     return union_type_info;
@@ -304,7 +339,7 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
     /* get the meber type info */
     auto member_type_info = Type::ParseTypeDie(dbg, child_die);
     /* same as struct logic */
-    if (member_type_info != nullptr && member_type_info->GetTypeName() != "" && union_type_info->GetTypeName() != " " &&
+    if (member_type_info != nullptr && member_type_info->GetTypeName() != "" && union_type_info->GetTypeName() != "" &&
         member_type_info->GetTypeName() == union_type_info->GetTypeName()) {
       member_type_info = std::make_shared<BaseType>(member_type_info->GetTypeName(), member_type_info->GetTypeSize(),
                                                     member_type_info->IsPointer(), member_type_info->GetPointerLevel());
@@ -346,6 +381,8 @@ BaseType::BaseType(const BaseType &base_type) : Type(base_type) {}
 auto BaseType::IsUserDefined() const -> bool { return user_defined_; }
 
 void BaseType::SetUserDefined(const bool &user_defined) { user_defined_ = user_defined; }
+
+UserDefinedType::UserDefinedType(UserDefined user_defined_type) : Type(), user_defined_type_(user_defined_type) {}
 
 UserDefinedType::UserDefinedType(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer,
                                  const size_t &level, const UserDefined &user_defined_type,

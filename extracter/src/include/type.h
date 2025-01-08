@@ -66,6 +66,9 @@ class Type {
   /* record struct info */
   static std::unordered_map<std::string, TypeRef> struct_infos_;
 
+  /* record union info */
+  static std::unordered_map<std::string, TypeRef> union_infos;
+
   /* type name */
   std::string type_name_;
 
@@ -102,6 +105,8 @@ class BaseType : public Type {
 class UserDefinedType : public Type {
  public:
   UserDefinedType() = default;
+
+  UserDefinedType(UserDefined user_defined_type);
 
   UserDefinedType(const std::string &type_name, const Dwarf_Unsigned &size, const bool &is_pointer, const size_t &level,
                   const UserDefined &user_defined_type, const std::list<Dwarf_Unsigned> &member_offsets,
