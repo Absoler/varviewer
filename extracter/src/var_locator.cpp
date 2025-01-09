@@ -53,14 +53,18 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
   PRINT_FUNCTION_NAME();
   int res;
   Dwarf_Error err;
-
-  /* a pointer point to the DW_AT_location */
-  Dwarf_Attribute location_attr;
-  res = dwarf_attr(var_die, DW_AT_location, &location_attr, &err);
-  SIMPLE_HANDLE_ERR(res);
   Dwarf_Half loc_form;
+  /* a pointer point to the DW_AT_location */
+  Dwarf_Attribute location_attr{nullptr};
+  if ((res = dwarf_attr(var_die, DW_AT_location, &location_attr, &err)) != DW_DLV_OK) {
+    return res;
+  }
+
   res = dwarf_whatform(location_attr, &loc_form, &err);
-  SIMPLE_HANDLE_ERR(res);
+  if ((res = dwarf_whatform(location_attr, &loc_form, &err)) != DW_DLV_OK) {
+    dwarf_dealloc_attribute(location_attr);
+    return res;
+  }
 
   Evaluator evaluator;
   evaluator.dbg_ = dbg;
@@ -68,6 +72,7 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
 
   Address addr = evaluator.ReadLocation(location_attr, loc_form, range);
   if (addr.valid_ == false) {
+    dwarf_dealloc_attribute(location_attr);
     return 1;
   }
   if (name) {
@@ -76,7 +81,9 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
   char *file_name = NULL;
   Dwarf_Unsigned decl_row = -1, decl_col = -1;
   res = TestDeclPos(dbg, cu_die, var_die, &file_name, &decl_row, &decl_col, 0);
-  if (file_name) addr.decl_file_ = std::string(file_name);
+  if (file_name) {
+    addr.decl_file_ = std::string(file_name);
+  }
   addr.decl_row_ = decl_row;
   addr.decl_col_ = decl_col;
   addr.type_info_ = type_info;
@@ -199,78 +206,78 @@ int TestDeclPos(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, char **dec
                 Dwarf_Unsigned *decl_col, int indent) {
   Dwarf_Error err;
   int res = 0;
-
   Dwarf_Bool has_decl_file;
-  res = dwarf_hasattr(var_die, DW_AT_decl_file, &has_decl_file, &err);
-  SIMPLE_HANDLE_ERR(res);
+
+  if ((res = dwarf_hasattr(var_die, DW_AT_decl_file, &has_decl_file, &err)) != DW_DLV_OK) {
+    return res;
+  }
   if (!has_decl_file) {
     Dwarf_Bool has_origin;
-    res = dwarf_hasattr(var_die, DW_AT_abstract_origin, &has_origin, &err);
-    SIMPLE_HANDLE_ERR(res);
+    if ((res = dwarf_hasattr(var_die, DW_AT_abstract_origin, &has_origin, &err)) != DW_DLV_OK) {
+      return res;
+    }
     if (!has_origin) {
       return 1;
     }
 
-    Dwarf_Attribute off_attr;
+    Dwarf_Attribute off_attr{nullptr};
     // Dwarf_Half off_form;
-    res = dwarf_attr(var_die, DW_AT_abstract_origin, &off_attr, &err);
-    SIMPLE_HANDLE_ERR(res);
+    if ((res = dwarf_attr(var_die, DW_AT_abstract_origin, &off_attr, &err)) != DW_DLV_OK) {
+      return res;
+    }
 
     // res = dwarf_whatform(off_attr, &off_form, &err);
     // SIMPLE_HANDLE_ERR(res)
 
     Dwarf_Off offset;
     Dwarf_Bool is_info;
-    res = dwarf_global_formref_b(off_attr, &offset, &is_info, &err);
-    SIMPLE_HANDLE_ERR(res);
+    if ((res = dwarf_global_formref_b(off_attr, &offset, &is_info, &err)) != DW_DLV_OK) {
+      dwarf_dealloc_attribute(off_attr);
+      return res;
+    }
 
     Dwarf_Die origin_die;
     res = dwarf_offdie_b(dbg, offset, is_info, &origin_die, &err);
     // dwarf_dealloc_die(var_die);
     var_die = origin_die;
-
     dwarf_dealloc_attribute(off_attr);
   }
 
   // get file name
-  Dwarf_Attribute decl_file_attr;
-  res = dwarf_attr(var_die, DW_AT_decl_file, &decl_file_attr, &err);
-  SIMPLE_HANDLE_ERR(res);
-
+  Dwarf_Attribute decl_file_attr{nullptr};
+  if ((res = dwarf_attr(var_die, DW_AT_decl_file, &decl_file_attr, &err)) != DW_DLV_OK) {
+    return res;
+  }
   Dwarf_Unsigned decl_file;
-  res = dwarf_formudata(decl_file_attr, &decl_file, &err);
-  SIMPLE_HANDLE_ERR(res);
+  if ((res = dwarf_formudata(decl_file_attr, &decl_file, &err)) != DW_DLV_OK) {
+    return res;
+  }
 
   char **filenames;
   Dwarf_Signed count;
-  res = dwarf_srcfiles(cu_die, &filenames, &count, &err);
-  SIMPLE_HANDLE_ERR(res);
+  if ((res = dwarf_srcfiles(cu_die, &filenames, &count, &err)) != DW_DLV_OK) {
+    dwarf_dealloc_attribute(decl_file_attr);
+    return res;
+  }
 
   (*decl_file_name) = filenames[decl_file - 1];
   // printindent(indent);
   // printf("%lld %llu %s\n", count, decl_file, filenames[decl_file-1]);
 
   // get decl row and col
-  Dwarf_Attribute decl_row_attr, decl_col_attr;
+  Dwarf_Attribute decl_row_attr{nullptr}, decl_col_attr{nullptr};
   Dwarf_Bool has_row = true;
   res = dwarf_hasattr(var_die, DW_AT_decl_line, &has_row, &err);
   if (has_row) {
     res = dwarf_attr(var_die, DW_AT_decl_line, &decl_row_attr, &err);
-    SIMPLE_HANDLE_ERR(res)
-
     res = dwarf_formudata(decl_row_attr, decl_row, &err);
-    SIMPLE_HANDLE_ERR(res)
   }
 
   Dwarf_Bool has_col = true;
   res = dwarf_hasattr(var_die, DW_AT_decl_column, &has_col, &err);
-  SIMPLE_HANDLE_ERR(res);
   if (has_col) {
     res = dwarf_attr(var_die, DW_AT_decl_column, &decl_col_attr, &err);
-    SIMPLE_HANDLE_ERR(res);
-
     res = dwarf_formudata(decl_col_attr, decl_col, &err);
-    SIMPLE_HANDLE_ERR(res);
   }
   dwarf_dealloc_attribute(decl_file_attr);
   dwarf_dealloc_attribute(decl_row_attr);
@@ -283,7 +290,7 @@ int PrintRawLocation(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc_f
   int ret = 0;
   int res = 0;
   Dwarf_Error err;
-  Dwarf_Loc_Head_c loclist_head;
+  Dwarf_Loc_Head_c loclist_head{nullptr};
   Dwarf_Unsigned locentry_len;
   if (loc_form != DW_FORM_sec_offset && loc_form != DW_FORM_exprloc && loc_form != DW_FORM_block &&
       loc_form != DW_FORM_data1 && loc_form != DW_FORM_data2 && loc_form != DW_FORM_data4 && loc_form != DW_FORM_data8)
@@ -291,7 +298,9 @@ int PrintRawLocation(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc_f
   else
     res = dwarf_get_loclist_c(loc_attr, &loclist_head, &locentry_len, &err);
 
-  SIMPLE_HANDLE_ERR(res);
+  if (res != DW_DLV_OK) {
+    return res;
+  }
 
   std::string outputString;
   bool isMultiLoc = true;

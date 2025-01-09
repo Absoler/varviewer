@@ -35,6 +35,19 @@ Type::Type(const Type &type)
       is_pointer_(type.is_pointer_),
       pointer_level_(type.pointer_level_) {}
 
+/* deallocate the dwarf resource we used */
+void Type::DeallocDwarfResources(Dwarf_Debug dbg, Dwarf_Die type_die, Dwarf_Error err, Dwarf_Attribute attr) {
+  if (type_die) {
+    dwarf_dealloc_die(type_die);
+  }
+  if (err) {
+    dwarf_dealloc_error(dbg, err);
+  }
+  if (attr) {
+    dwarf_dealloc_attribute(attr);
+  }
+}
+
 /* public interface */
 auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die) -> TypeRef {
   return ParseTypeDieInternal(dbg, var_die, false, 0);
@@ -57,78 +70,83 @@ auto Type::ParseTypeDie(Dwarf_Debug dbg, Dwarf_Die var_die) -> TypeRef {
  *       ,nullptr if failed
  */
 auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &is_pointer, size_t level) -> TypeRef {
-  Dwarf_Attribute type_attr;
-  Dwarf_Die type_die;
+  /* need to deallocate */
+  Dwarf_Attribute type_attr{nullptr};
+  Dwarf_Die type_die{nullptr};
+  Dwarf_Error err{nullptr};
+
   Dwarf_Off type_global_offset;
   Dwarf_Bool is_info;
-  Dwarf_Error err;
   Dwarf_Half tag;
   int res = -1;
   Dwarf_Bool has_type = false;
   Dwarf_Unsigned byte_size;
   Dwarf_Bool has_byte_size = false;
   Dwarf_Bool has_name = false;
-  char *type_name;
+  char *type_name{nullptr};
   std::string type_name_str;
 
   res = dwarf_hasattr(var_die, DW_AT_type, &has_type, &err);
-  if (has_type) {
-    /* get DW_AT_type attribute */
-    res = dwarf_attr(var_die, DW_AT_type, &type_attr, &err);
-    /* get the dw_at_type really point to's type die offset in global*/
-    res = dwarf_global_formref_b(type_attr, &type_global_offset, &is_info, &err);
-    if (res != DW_DLV_OK) {
-      return nullptr;
-    }
 
-    /* using global offset to get the type die */
-    res = dwarf_offdie_b(dbg, type_global_offset, is_info, &type_die, &err);
-
-    if (res != DW_DLV_OK) {
-      return nullptr;
-    }
-
-    /* get tag name */
-    dwarf_tag(type_die, &tag, &err);
-    if (tag == DW_TAG_pointer_type) {
-      return ParseTypeDieInternal(dbg, type_die, true, level + 1);
-    } else if (tag == DW_TAG_const_type || tag == DW_TAG_array_type || tag == DW_TAG_typedef ||
-               tag == DW_TAG_volatile_type || tag == DW_TAG_atomic_type || tag == DW_TAG_reference_type ||
-               tag == DW_TAG_restrict_type || tag == DW_TAG_rvalue_reference_type) {
-      /*
-      const type does not need to level + 1
-      and the recur is_pointer parameter should be same as the top caller
-      because for const int *, its die's type will point to a
-      pointer type die, then the pointer type die willl point
-      to a const type die, so need to keep same as the top caller
-      btw, for int const *, its dies's type will point to a const type die
-      then const type die point to point type die.
-      other tag similarly
-      */
-      return ParseTypeDieInternal(dbg, type_die, is_pointer, level);
-    }
-    res = dwarf_hasattr(type_die, DW_AT_byte_size, &has_byte_size, &err);
-    if (has_byte_size) {
-      res = dwarf_bytesize(type_die, &byte_size, &err);
-    }
-
-    res = dwarf_hasattr(type_die, DW_AT_name, &has_name, &err);
-    if (has_name) {
-      res = dwarf_diename(type_die, &type_name, &err);
-      type_name_str = std::string(type_name);
-    } else {
-      type_name_str = "";
-    }
-  } else {
+  if (!has_type) {
     /* when program reach here, it means void type, void * , void ** ... */
-    type_name_str = "void";
-    byte_size = 8;
-    return std::make_shared<BaseType>(type_name_str, byte_size, is_pointer, level);
+    DeallocDwarfResources(dbg, type_die, err, type_attr);
+    return std::make_shared<BaseType>("void", 8, is_pointer, level);
   }
 
-  if (tag == DW_TAG_base_type) {
+  /* get DW_AT_type attribute */
+  res = dwarf_attr(var_die, DW_AT_type, &type_attr, &err);
+  /* get the dw_at_type really point to's type die offset in global*/
+  res = dwarf_global_formref_b(type_attr, &type_global_offset, &is_info, &err);
+  if (res != DW_DLV_OK) {
+    DeallocDwarfResources(dbg, type_die, err, type_attr);
+    return nullptr;
+  }
+  /* using global offset to get the type die */
+  res = dwarf_offdie_b(dbg, type_global_offset, is_info, &type_die, &err);
+
+  if (res != DW_DLV_OK) {
+    DeallocDwarfResources(dbg, type_die, err, type_attr);
+    return nullptr;
+  }
+
+  /* get tag name */
+  dwarf_tag(type_die, &tag, &err);
+
+  if (tag == DW_TAG_pointer_type) {
+    return ParseTypeDieInternal(dbg, type_die, true, level + 1);
+  } else if (tag == DW_TAG_const_type || tag == DW_TAG_array_type || tag == DW_TAG_typedef ||
+             tag == DW_TAG_volatile_type || tag == DW_TAG_atomic_type || tag == DW_TAG_reference_type ||
+             tag == DW_TAG_restrict_type || tag == DW_TAG_rvalue_reference_type) {
+    /*
+    const type does not need to level + 1
+    and the recur is_pointer parameter should be same as the top caller
+    because for const int *, its die's type will point to a
+    pointer type die, then the pointer type die willl point
+    to a const type die, so need to keep same as the top caller
+    btw, for int const *, its dies's type will point to a const type die
+    then const type die point to point type die.
+    other tag similarly
+    */
+    return ParseTypeDieInternal(dbg, type_die, is_pointer, level);
+  }
+  res = dwarf_hasattr(type_die, DW_AT_byte_size, &has_byte_size, &err);
+  if (has_byte_size) {
+    res = dwarf_bytesize(type_die, &byte_size, &err);
+  }
+
+  res = dwarf_hasattr(type_die, DW_AT_name, &has_name, &err);
+  if (has_name) {
+    res = dwarf_diename(type_die, &type_name, &err);
+    type_name_str = std::string(type_name);
+  } else {
+    type_name_str = "";
+  }
+
+  if (tag == DW_TAG_base_type) { /* base type */
+    DeallocDwarfResources(dbg, type_die, err, type_attr);
     return std::make_shared<BaseType>(type_name_str, byte_size, is_pointer, level);
-  } else if (tag == DW_TAG_structure_type) {
+  } else if (tag == DW_TAG_structure_type) { /* struct */
     /*
     if the struct has not been record, tells that the struct member type die is defined
     behind the current struct. for example:
@@ -151,6 +169,7 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
       LOG_DEBUG("type %s found", type_name_str.c_str());
       struct_type_info_ptr = std::dynamic_pointer_cast<UserDefinedType>(struct_infos_[type_name_str]);
     }
+    DeallocDwarfResources(dbg, type_die, err, type_attr);
     return std::make_shared<UserDefinedType>(
         type_name_str, byte_size, is_pointer, level, struct_type_info_ptr->GetUserDefinedType(),
         struct_type_info_ptr->GetMemberOffsets(), struct_type_info_ptr->GetMemberNames(),
@@ -161,12 +180,15 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
       return nullptr;
     }
     auto union_type_info_ptr = std::dynamic_pointer_cast<UserDefinedType>(union_type_info);
+    DeallocDwarfResources(dbg, type_die, err, type_attr);
     return std::make_shared<UserDefinedType>(
         type_name_str, byte_size, is_pointer, level, union_type_info_ptr->GetUserDefinedType(),
         union_type_info_ptr->GetMemberOffsets(), union_type_info_ptr->GetMemberNames(),
         union_type_info_ptr->GetMemberTypes());
+  } else {
+    DeallocDwarfResources(dbg, type_die, err, type_attr);
+    return nullptr;
   }
-  return nullptr;
 }
 
 /**
@@ -183,11 +205,14 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
  */
 auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   std::cout << "\n\033[1;32mParse Struct Type\033[0m\n";
-  Dwarf_Error err;
+  /* need to deallocate */
+  Dwarf_Error err{nullptr};
+  Dwarf_Attribute offset_attr{nullptr};
+  Dwarf_Die child_die{nullptr};
+
   Dwarf_Unsigned byte_size;
   Dwarf_Bool has_byte_size = true;
-  Dwarf_Die child_die;
-  Dwarf_Attribute offset_attr;
+
   auto struct_type_info = std::make_shared<UserDefinedType>(UserDefined::STRUCT);
   char *name = nullptr;
   int res;
@@ -196,6 +221,7 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   if (res == DW_DLV_OK) {
     if (struct_infos_.count(std::string(name)) != 0U) {
       LOG_DEBUG("struct %s has been recorded", name);
+      DeallocDwarfResources(dbg, child_die, err, offset_attr);
       return struct_infos_[std::string(name)];
     }
     /* placeholder first, avoid endless recur when the struct has member which type is itself */
@@ -219,12 +245,14 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   if (dwarf_child(struct_die, &child_die, &err) != DW_DLV_OK) {
     /* has no member */
     struct_infos_[struct_type_info->GetTypeName()] = struct_type_info;
+    DeallocDwarfResources(dbg, child_die, err, offset_attr);
     return struct_type_info;
   }
   /* traverse all the DW_TAG_member */
   do { /* get DW_AT_data_member_location attr */
     res = dwarf_attr(child_die, DW_AT_data_member_location, &offset_attr, &err);
     if (res != DW_DLV_OK) {
+      DeallocDwarfResources(dbg, child_die, err, offset_attr);
       return struct_type_info;
     }
     /* get member name */
@@ -273,7 +301,7 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
    but may have a same name, so need to clear
   */
   union_infos.clear();
-  dwarf_dealloc_attribute(offset_attr);
+  DeallocDwarfResources(dbg, child_die, err, offset_attr);
   return struct_type_info;
 }
 
@@ -291,11 +319,14 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
  */
 auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   std::cout << "\033[34mParse Union Type\033[0m\n";
-  Dwarf_Error err;
+  /* need to deallocate */
+  Dwarf_Error err{nullptr};
+  Dwarf_Die child_die{nullptr};
+  Dwarf_Attribute offset_attr{nullptr};
+
   Dwarf_Unsigned byte_size;
   Dwarf_Bool has_byte_size = true;
-  Dwarf_Die child_die;
-  Dwarf_Attribute offset_attr;
+
   auto union_type_info = std::make_shared<UserDefinedType>(UserDefined::UNION);
   char *name = nullptr;
   int res;
@@ -304,6 +335,7 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   if (res == DW_DLV_OK) {
     if (union_infos.count(std::string(name)) != 0U) {
       LOG_DEBUG("union %s has been recorded", name);
+      DeallocDwarfResources(dbg, child_die, err, offset_attr);
       return union_infos[std::string(name)];
     }
     LOG_DEBUG("union name: %s;", name);
@@ -322,6 +354,7 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   union_type_info->SetTypeSize(byte_size);
   if (dwarf_child(union_die, &child_die, &err) != DW_DLV_OK) {
     /* has no member */
+    DeallocDwarfResources(dbg, child_die, err, offset_attr);
     return union_type_info;
   }
   /* traverse all the DW_TAG_member */
@@ -351,6 +384,7 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
     /* get next sibling */
   } while (dwarf_siblingof_b(dbg, child_die, true, &child_die, &err) == DW_DLV_OK);
 
+  DeallocDwarfResources(dbg, child_die, err, offset_attr);
   return union_type_info;
 }
 

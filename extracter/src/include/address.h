@@ -76,6 +76,8 @@ class Address {
 
   Address(const Address &address) = default;
 
+  Address &operator=(const Address &address) = default;
+
   void Output();
 
   void UpdateValid();

@@ -7,13 +7,8 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
-#include <memory>
 #include <ostream>
 #include <string>
-#include <unordered_set>
-#include "include/address.h"
-#include "include/type.h"
-#include "include/util.h"
 #include "include/var_locator.h"
 // global options
 std::string jsonFileStr;

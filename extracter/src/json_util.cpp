@@ -173,6 +173,7 @@ nlohmann::json createJsonForType(const std::shared_ptr<Type> &type, std::unorder
                                  const int &depth) {
   nlohmann::json res;
   if (type == nullptr) {
+    res["typeName"] = "Unsupported type";
     return res;
   }
 
