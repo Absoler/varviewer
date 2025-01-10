@@ -469,6 +469,15 @@ class VarMgr:
                     var.members:Dict[int, Dict[str, Any]] = addr["type_info"]["members"] if "members" in addr["type_info"] else {}# type: ignore
                     var.is_pointer = addr["type_info"]["isPointer"]
                     var.pointer_level = addr["type_info"]["pointerLevel"]
+                else:
+                    var.type_name = ""
+                    var.type_size = 0
+                    var.user_defined = False
+                    var.var_type = "unknown"
+                    var.members = {}
+                    var.is_pointer = False
+                    var.pointer_level = 0
+
                 self.vars.append(var)
                
 

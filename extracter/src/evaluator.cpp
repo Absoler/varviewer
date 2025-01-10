@@ -286,7 +286,10 @@ int Evaluator::ExecOperation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned 
       fprintf(stderr, "unknown op %u", op);
       ret = op;
   }
-
+  // no use, just for warning
+  if (op3) {
+    LOG_DEBUG("op3 is not 0");
+  }
   return ret;
 }
 

@@ -1,10 +1,11 @@
-#pragma once
+#ifndef VARVIEWER_JSON_UTIL_H
+#define VARVIEWER_JSON_UTIL_H
 #include <memory>
 #include <unordered_set>
-#include "address.h"
 #include "expression.h"
 #include "json.hpp"
 #include "type.h"
+
 class Address;
 class AddressExp;
 class Type;
@@ -86,6 +87,8 @@ json createJsonforExpression(const Expression &exp);
       }
   }
 */
-json createJsonForType(const std::shared_ptr<Type> &type, std::unordered_set<std::string> &visited,const int &depth);
+json createJsonForType(const std::shared_ptr<Type> &type, std::unordered_set<std::string> &visited, const int &depth);
 
 }  // namespace varviewer
+
+#endif  // VARVIEWER_JSON_UTIL_H

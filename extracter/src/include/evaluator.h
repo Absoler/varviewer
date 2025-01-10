@@ -1,5 +1,5 @@
-#pragma once
-
+#ifndef VARVIEWER_EVALUATOR_H_
+#define VARVIEWER_EVALUATOR_H_
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 
@@ -10,9 +10,10 @@
 #include "ranges.h"
 
 namespace varviewer {
+  
 enum class ArgType { ArgVarType, ArgBlockType };
 
-// simple variable 
+// simple variable
 struct ArgVar {
   ArgVar(const Range &range, Dwarf_Half loc_form) : range_(range), loc_form_(loc_form) {}
   Range range_;
@@ -62,3 +63,5 @@ class Evaluator {
 
 extern Evaluator tempEvaluator;
 }  // namespace varviewer
+
+#endif  // VARVIEWER_EVALUATOR_H_

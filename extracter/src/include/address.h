@@ -1,5 +1,5 @@
-#pragma once
-
+#ifndef VARVIEWER_ADDRESS_H_
+#define VARVIEWER_ADDRESS_H_
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 
@@ -103,3 +103,5 @@ class Address {
 };
 
 }  // namespace varviewer
+
+#endif  // VARVIEWER_ADDRESS_H_

@@ -1,14 +1,13 @@
-#pragma once
-
+#ifndef VARVIEWER_EXPRESSION_H_
+#define VARVIEWER_EXPRESSION_H_
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
-
 #include <memory>
 #include <ostream>
 #include <string>
-
 #include "json.hpp"
 #include "type.h"
+
 namespace varviewer {
 
 using json = nlohmann::json;
@@ -31,6 +30,8 @@ class Expression {
   explicit Expression(Dwarf_Unsigned val_u);
 
   explicit Expression(Dwarf_Signed val_s);
+
+  Expression &operator=(const Expression &exp);
 
   static Expression CreateEmpty();
 
@@ -76,10 +77,10 @@ class Expression {
   std::shared_ptr<Expression> mem_;
 
   Dwarf_Small mem_size_ = 0;
-  
+
   /* if true, then this expression is the currenet cfa value */
   bool isCFA_{false};
-  
+
   /* operation can't express inside one expression will expand a single expression node to a binary tree */
   std::shared_ptr<Expression> sub1_{nullptr}, sub2_{nullptr};
 
@@ -89,3 +90,5 @@ class Expression {
 };
 
 }  // namespace varviewer
+
+#endif  // VARVIEWER_EXPRESSION_H_

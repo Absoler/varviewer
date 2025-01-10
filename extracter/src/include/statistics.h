@@ -1,3 +1,5 @@
+#ifndef VARVIEWER_STATISTICS_H
+#define VARVIEWER_STATISTICS_H
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 
@@ -54,3 +56,5 @@ class Statistics {
   std::string output();
 };
 }  // namespace varviewer
+
+#endif  // VARVIEWER_STATISTICS_H

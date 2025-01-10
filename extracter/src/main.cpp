@@ -9,6 +9,7 @@
 #include <iostream>
 #include <ostream>
 #include <string>
+#include "include/logger.h"
 #include "include/var_locator.h"
 // global options
 std::string jsonFileStr;
@@ -29,6 +30,20 @@ bool isFirstJson = true;
 int varNoLocation = 0;
 
 int main(int argc, char *argv[]) {
+  if (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)) {
+    std::cout << "Usage: " << argv[0] << " <elf file> [options]\n"
+              << "Options:\n"
+              << "  -o, --output <file>  output json file\n"
+              << "  -nj                  not use json format\n"
+              << "  -r, --raw            print raw location expression\n"
+              << "  -nc                  only print complex location expression\n"
+              << "  -fde                 print frame description entry\n"
+              << "  -fo <file>           output frame info to file\n"
+              << "  --no-traverse        not traverse the DIE tree\n"
+              << "  -omm                 output member in member\n";
+    return 0;
+  }
+
   const char *progname = argv[1];
   int fd = open(progname, O_RDONLY);
   if (fd < 0) {
@@ -102,7 +117,7 @@ int main(int argc, char *argv[]) {
       // return 1;
     }
 
-    printf("cu_header_length:%llu\nnext_cu_header:%llu\n", cu_header_length, next_cu_header);
+    LOG_DEBUG("cu_header_length:%llu\nnext_cu_header:%llu\n", cu_header_length, next_cu_header);
 
     // get the first die or next die ,NULL to retrieve the CU DIE.
     if (dwarf_siblingof_b(dbg, NULL, is_info, &cu_die, &err) != DW_DLV_OK) {

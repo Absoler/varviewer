@@ -1,4 +1,5 @@
-#pragma once
+#ifndef VARVIEWER_TYPE_H_
+#define VARVIEWER_TYPE_H_
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 #include <algorithm>
@@ -13,6 +14,7 @@
 #include <unordered_set>
 #include <vector>
 #include "util.h"
+
 namespace varviewer {
 
 // <piece_start, piece_size>
@@ -163,3 +165,5 @@ class UserDefinedType : public Type {
 };
 
 }  // namespace varviewer
+
+#endif  // VARVIEWER_TYPE_H_

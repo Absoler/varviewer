@@ -115,7 +115,7 @@ std::string addindent(int indent) {
 template <typename T>
 std::string toHex(T v) {
   static const char *digits = "0123456789ABCDEF";
-  int size = sizeof(T) << 1;
+  size_t size = sizeof(T) << 1;
   std::string res(size, '0');
   for (size_t i = 0, j = (size - 1) * 4; i < size; ++i, j -= 4) res[i] = digits[(v >> j) & 0x0f];
   return res;

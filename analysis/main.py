@@ -12,7 +12,7 @@ from filter import Filter
 
 piece_limit = 1000000
 
-if __name__ == "__main__":
+def main():
     beginTime:int = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument("binPath")
@@ -53,6 +53,8 @@ if __name__ == "__main__":
         all_insts:list[Instruction] = []
         for ins in decoder:
             all_insts.append(ins)
+    
+    file_name:string = os.path.basename(binPath)
 
     # prepare dwarf info
     mgr.load(jsonPath)
@@ -91,7 +93,7 @@ if __name__ == "__main__":
         if piece_num >= args.end:
             break
 
-        piece_name = tempPath + '/piece_' + str(piece_num)
+        piece_name = tempPath + '/piece_' + file_name + str(piece_num)
         addrExp = mgr.vars[piece_num]
 
         ''' 
@@ -188,8 +190,18 @@ if __name__ == "__main__":
         piece_file.close()
         piece_addr_file.close()
         analysis.clear()
-
-        
+        # Delete the generated files after processing the piece
+        if os.path.exists(piece_name):
+            os.remove(piece_name)  # Delete the binary piece file
+        if os.path.exists(piece_name + ".S"):
+            os.remove(piece_name + ".S")  # Delete the assembly file
+        if os.path.exists(piece_name + ".addr"):
+            os.remove(piece_name + ".addr")  # Delete the addresses file
+        if os.path.exists(piece_name + ".o"):
+            os.remove(piece_name + ".o")  # Delete the object file
+        if os.path.exists(piece_name + ".vex"):
+            os.remove(piece_name + ".vex")
+            
     
 
     ''' output result
@@ -202,3 +214,7 @@ if __name__ == "__main__":
         res_file = open(args.output, "w")
         json.dump(list(map(dict, all_reses)), res_file, indent=4)
         res_file.close()
+
+if __name__ == "__main__":
+    main()
+   

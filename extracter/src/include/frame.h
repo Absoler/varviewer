@@ -1,4 +1,5 @@
-#pragma once
+#ifndef VARVIEWER_FRAME_H_
+#define VARVIEWER_FRAME_H_
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 
@@ -8,6 +9,7 @@
 #include "evaluator.h"
 #include "expression.h"
 #include "util.h"
+
 namespace varviewer {
 
 extern Address framebase;
@@ -21,3 +23,4 @@ void testFDE(Dwarf_Debug dbg, bool print = false);
 int updateFrameBase(Dwarf_Die die, const Range &range);
 
 }  // namespace varviewer
+#endif  // VARVIEWER_FRAME_H_

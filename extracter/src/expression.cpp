@@ -33,15 +33,15 @@ Expression::Expression(const Expression &exp) {
 /* defauly constructor */
 Expression::Expression()
     : valid_(true),
-      offset_(0),
       reg_scale_{0},
+      offset_(0),
       mem_(nullptr),
       mem_size_(0),
-      hasChild_(false),
+      isCFA_(false),
       sub1_(nullptr),
       sub2_(nullptr),
       op_(0),
-      isCFA_(false) {}
+      hasChild_(false) {}
 
 Expression::Expression(Dwarf_Unsigned _val_u) {
   Reset();
@@ -52,6 +52,25 @@ Expression::Expression(Dwarf_Signed _val_s) {
   Reset();
   offset_ = static_cast<Dwarf_Unsigned>(_val_s);
   sign_ = true;
+}
+
+Expression &Expression::operator=(const Expression &exp) {
+  if (this == &exp) {
+    return *this;
+  }
+  valid_ = exp.valid_;
+  memcpy(reg_scale_, exp.reg_scale_, sizeof(reg_scale_));
+  offset_ = exp.offset_;
+  /* deep copy for shared_ptr */
+  mem_ = exp.mem_ ? std::make_shared<Expression>(*exp.mem_) : nullptr;
+  mem_size_ = exp.mem_size_;
+  sign_ = exp.sign_;
+  hasChild_ = exp.hasChild_;
+  sub1_ = exp.sub1_ ? std::make_shared<Expression>(*exp.sub1_) : nullptr;
+  sub2_ = exp.sub2_ ? std::make_shared<Expression>(*exp.sub2_) : nullptr;
+  op_ = exp.op_;
+  isCFA_ = exp.isCFA_;
+  return *this;
 }
 
 Expression Expression::CreateEmpty() {

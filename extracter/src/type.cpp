@@ -75,16 +75,16 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
   Dwarf_Die type_die{nullptr};
   Dwarf_Error err{nullptr};
 
-  Dwarf_Off type_global_offset;
+  Dwarf_Off type_global_offset{0};
   Dwarf_Bool is_info;
   Dwarf_Half tag;
-  int res = -1;
-  Dwarf_Bool has_type = false;
-  Dwarf_Unsigned byte_size;
-  Dwarf_Bool has_byte_size = false;
-  Dwarf_Bool has_name = false;
+  int res{-1};
+  Dwarf_Bool has_type{false};
+  Dwarf_Unsigned byte_size{0};
+  Dwarf_Bool has_byte_size{false};
+  Dwarf_Bool has_name{false};
   char *type_name{nullptr};
-  std::string type_name_str;
+  std::string type_name_str{};
 
   res = dwarf_hasattr(var_die, DW_AT_type, &has_type, &err);
 
@@ -210,11 +210,10 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   Dwarf_Attribute offset_attr{nullptr};
   Dwarf_Die child_die{nullptr};
 
-  Dwarf_Unsigned byte_size;
+  Dwarf_Unsigned byte_size{0};
   Dwarf_Bool has_byte_size = true;
-
   auto struct_type_info = std::make_shared<UserDefinedType>(UserDefined::STRUCT);
-  char *name = nullptr;
+  char *name{nullptr};
   int res;
   res = get_name(dbg, struct_die, &name);
   /* some struct may not have name */
@@ -324,11 +323,11 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   Dwarf_Die child_die{nullptr};
   Dwarf_Attribute offset_attr{nullptr};
 
-  Dwarf_Unsigned byte_size;
-  Dwarf_Bool has_byte_size = true;
+  Dwarf_Unsigned byte_size{0};
+  Dwarf_Bool has_byte_size{false};
 
   auto union_type_info = std::make_shared<UserDefinedType>(UserDefined::UNION);
-  char *name = nullptr;
+  char *name{nullptr};
   int res;
   res = get_name(dbg, union_die, &name);
   /* some union may not have name */

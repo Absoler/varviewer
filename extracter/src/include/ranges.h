@@ -1,5 +1,5 @@
-#pragma once
-
+#ifndef VARVIEWER_RANGES_H
+#define VARVIEWER_RANGES_H
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
 
@@ -12,7 +12,7 @@ class Range {
   static Range createFromDie(Dwarf_Die die);
 
   Range() : startpc(0), endpc(0) {}
-  
+
   Range(const Range &range);
 
   void clear();
@@ -27,4 +27,7 @@ class Range {
 extern const Range dummyrange;
 
 int parse_simple_ranges(Dwarf_Die die, Dwarf_Addr *startpc, Dwarf_Addr *endpc);
+
 }  // namespace varviewer
+
+#endif  // VARVIEWER_RANGES_H_

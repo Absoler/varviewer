@@ -80,7 +80,7 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
   }
   char *file_name = NULL;
   Dwarf_Unsigned decl_row = -1, decl_col = -1;
-  res = TestDeclPos(dbg, cu_die, var_die, &file_name, &decl_row, &decl_col, 0);
+  res = TestDeclPos(dbg, cu_die, var_die, &file_name, &decl_row, &decl_col);
   if (file_name) {
     addr.decl_file_ = std::string(file_name);
   }
@@ -203,7 +203,7 @@ void OutputJsonForMembers(const Address &addr, const std::shared_ptr<Type> &type
 }
 
 int TestDeclPos(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, char **decl_file_name, Dwarf_Unsigned *decl_row,
-                Dwarf_Unsigned *decl_col, int indent) {
+                Dwarf_Unsigned *decl_col) {
   Dwarf_Error err;
   int res = 0;
   Dwarf_Bool has_decl_file;
@@ -304,7 +304,7 @@ int PrintRawLocation(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc_f
 
   std::string outputString;
   bool isMultiLoc = true;
-  int bored_cnt = 0;
+  size_t bored_cnt = 0;
   for (Dwarf_Unsigned i = 0; i < locentry_len; i++) {
     Dwarf_Small lkind = 0, lle_value = 0;
     Dwarf_Unsigned rawval1 = 0, rawval2 = 0;
@@ -378,7 +378,7 @@ int PrintRawLocation(Dwarf_Debug dbg, Dwarf_Attribute loc_attr, Dwarf_Half loc_f
       bored_cnt++;
     }
   }
-  if (!onlyComplex || isMultiLoc && bored_cnt < locentry_len) {
+  if (!onlyComplex || (isMultiLoc && (bored_cnt < locentry_len))) {
     std::cout << outputString << "\n";
   }
 
@@ -487,7 +487,7 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
     }
     // get child DIE
     if (dwarf_child(fa_die, &child_die, &err) == DW_DLV_OK) {
-      std::cout << "has child\n";
+      // std::cout << "has child\n";
       WalkDieTree(cu_die, dbg, child_die, range, is_info, indent + 1);
       dwarf_dealloc_die(child_die);
     }
