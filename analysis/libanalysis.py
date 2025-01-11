@@ -844,7 +844,7 @@ class Analysis:
                         vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
                         dwarf_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in dwarf_regs}
                         if vex_regs_sizeNames == dwarf_regs_sizeNames and not has_load(vex_expr) and not has_offset(vex_expr):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,addrExp.user_defined,addrExp.members,irsb.addr, i))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_info,irsb.addr, i))
                         continue
 
                     # conds:list = make_reg_type_conds(vex_expr) + [loadu_cond, loads_cond]
@@ -855,13 +855,13 @@ class Analysis:
                     if dwarf_expr != None:
                         offset = compare_exps(vex_expr, dwarf_expr, conds, useOffset)
                         if check_offset(offset, 0):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,addrExp.user_defined,addrExp.members,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_info,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                     if dwarf_addr != None:
                         offset = compare_exps(vex_expr, dwarf_addr, conds, useOffset)
                         if check_offset(offset, -1):
-                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, detailedDwarfType,addrExp.type_name,addrExp.type_size,addrExp.var_type,addrExp.is_pointer,addrExp.pointer_level,addrExp.user_defined,addrExp.members,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
+                            reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, detailedDwarfType,addrExp.type_info,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                 

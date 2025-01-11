@@ -1,4 +1,3 @@
-
 #include "include/type.h"
 #include <libdwarf-0/dwarf.h>
 #include <libdwarf-0/libdwarf.h>
@@ -7,9 +6,9 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include "include/logger.h"
 #include "include/util.h"
+
 namespace varviewer {
 
 /* static member must init out of class */
@@ -300,6 +299,7 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
    but may have a same name, so need to clear
   */
   union_infos.clear();
+
   DeallocDwarfResources(dbg, child_die, err, offset_attr);
   return struct_type_info;
 }

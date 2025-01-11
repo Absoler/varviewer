@@ -455,29 +455,7 @@ class VarMgr:
                 var.decl_file = addr["decl_file"]
                 var.decl_row = int(addr["decl_row"])
                  # add type info 
-                if "type_info" in addr:
-                    var.type_name = addr["type_info"]["typeName"]
-                    var.type_size = int(addr["type_info"]["size"])
-                    var.user_defined = addr["type_info"]["userDefined"]
-                    if "." in var.name or "->" in var.name:
-                        var.var_type = "struct_member"
-                    elif var.user_defined:
-                        var.var_type = "struct"
-                    else:
-                        var.var_type = "builtin" 
-                    
-                    var.members:Dict[int, Dict[str, Any]] = addr["type_info"]["members"] if "members" in addr["type_info"] else {}# type: ignore
-                    var.is_pointer = addr["type_info"]["isPointer"]
-                    var.pointer_level = addr["type_info"]["pointerLevel"]
-                else:
-                    var.type_name = ""
-                    var.type_size = 0
-                    var.user_defined = False
-                    var.var_type = "unknown"
-                    var.members = {}
-                    var.is_pointer = False
-                    var.pointer_level = 0
-
+                var.type_info = addr["type_info"] if "type_info" in addr else {} 
                 self.vars.append(var)
                
 
