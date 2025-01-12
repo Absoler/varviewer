@@ -83,8 +83,9 @@ def main():
     '''
     count, matchCount = 0, 0
     print("mgr local ind", mgr.local_ind)
-    for piece_num in range(mgr.local_ind, len(mgr.vars)):
-        
+    length = len(mgr.vars)
+    for piece_num in range(mgr.local_ind, length):
+        print (f"piece num {piece_num},total length {length}")
         startTime = time.time()
         if piece_num > piece_limit + mgr.local_ind:
             break

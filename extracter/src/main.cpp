@@ -22,6 +22,7 @@ bool onlyComplex = false;
 bool printFDE = false;
 bool noTraverse = false;
 bool OutMemberInMember = false;
+bool matchField = false;
 
 // important variables
 bool isFirstJson = true;
@@ -33,14 +34,15 @@ int main(int argc, char *argv[]) {
   if (argc == 2 && (strcmp(argv[1], "-h") == 0 || strcmp(argv[1], "--help") == 0)) {
     std::cout << "Usage: " << argv[0] << " <elf file> [options]\n"
               << "Options:\n"
-              << "  -o, --output <file>  output json file\n"
-              << "  -nj                  not use json format\n"
-              << "  -r, --raw            print raw location expression\n"
-              << "  -nc                  only print complex location expression\n"
-              << "  -fde                 print frame description entry\n"
-              << "  -fo <file>           output frame info to file\n"
-              << "  --no-traverse        not traverse the DIE tree\n"
-              << "  -omm                 output member in member\n";
+              << "  -o, --output <file>    output json file\n"
+              << "  -nj                    not use json format\n"
+              << "  -r, --raw              print raw location expression\n"
+              << "  -nc                    only print complex location expression\n"
+              << "  -fde                   print frame description entry\n"
+              << "  -fo <file>             output frame info to file\n"
+              << "  --no-traverse          not traverse the DIE tree\n"
+              << "  -omm                   output member in member\n"
+              << "  -mf, --match-field     match field\n";
     return 0;
   }
 
@@ -71,6 +73,11 @@ int main(int argc, char *argv[]) {
       noTraverse = true;
     } else if (strcmp(argv[i], "-omm") == 0) {
       OutMemberInMember = true;
+    } else if (strcmp(argv[i], "--match-field") == 0 || strcmp(argv[i], "-mf") == 0) {
+      matchField = true;
+    } else {
+      std::cerr << "unknown option: " << argv[i] << "\n";
+      return 1;
     }
   }
 

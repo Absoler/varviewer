@@ -55,6 +55,7 @@ you need 2 steps to match variables.
     + `-fde` for print CFA info
     + `--no-traverse` for avoidance of fully traversing, and quickly print other info
     + `-omm` for output struct member's member in a single json, or in a single json will only output its own member
+    + `-mf`  for match a struct variable's member to expressions, or it will only match the struct variable
 
 ### analysis
 

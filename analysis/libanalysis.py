@@ -701,7 +701,7 @@ class Analysis:
     def match(self, addrExp:AddressExp, ty:DwarfType, piece_addrs:list, useOffset:bool, showTime:bool=False) -> list[Result]:
         # statistic variable
         potential_cnt = 0
-
+        print(f"match variable name: {addrExp.name}")
         dwarf_expr:BitVecRef = addrExp.get_Z3_expr(Hint())
         detailedDwarfType:DetailedDwarfType = addrExp.detailedDwarfType
         dwarf_regs = extract_regs_from_z3(dwarf_expr)

@@ -24,6 +24,7 @@ extern bool printRawLoc;
 extern bool onlyComplex;
 extern bool onlyComplex;
 extern int varNoLocation;
+extern bool matchField;
 
 namespace varviewer {
 
@@ -102,7 +103,7 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
     jsonOut.flush();
 
     /* for every member of the struct, output the a addr json( if has ) */
-    if (type_info && type_info->IsUserDefined()) {
+    if (type_info && type_info->IsUserDefined() && matchField) {
       std::unordered_set<std::string> processed_type_names;
       OutputJsonForMembers(addr, addr.type_info_, processed_type_names);
     }
