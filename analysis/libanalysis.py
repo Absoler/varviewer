@@ -15,13 +15,13 @@ import time
 import timeout_decorator
 
 
-@timeout_decorator.timeout(1)
-def solver_check(slv:Solver):
-    return slv.check()
+# @timeout_decorator.timeout(1)
+# def solver_check(slv:Solver):
+#     return slv.check()
 
 def solver_check_wrapper(slv:Solver):
     try:
-        res = solver_check(slv)
+        res = slv.check()
     except TimeoutError as e:
         return unsat
     return res
@@ -31,6 +31,7 @@ def compare_exps(exp1:BitVecRef, exp2:BitVecRef, conds:list, useOffset:bool = Fa
     '''
     assert(exp1.size()==exp2.size())
     slv = Solver()
+    slv.set("timeout", 1000)
     for cond in conds:
         slv.add(cond)
     off = BitVec("off", exp1.size())
