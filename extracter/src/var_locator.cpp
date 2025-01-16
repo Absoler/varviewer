@@ -438,6 +438,11 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
       /* if has DW_TAG_structure_type, parse it , will save in the Type's static member struct_infos_ */
       if (tag == DW_TAG_structure_type) {
         Type::ParseStructType(dbg, fa_die);
+        /*
+        every time after parse a struct, clear the union info, because the union defined in each struct is different
+        but may have a same name, so need to clear
+        */
+        Type::ClearUnionInfos();
       }
 
       /* if has DW_TAG_frame_base, update the global frame base */
@@ -453,6 +458,10 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
           printf(" name: %s;", var_name);
         }
         auto type_info = Type::ParseTypeDie(dbg, fa_die);
+        if (type_info && type_info->IsUserDefined()) {
+          /* same logic as above */
+          Type::ClearUnionInfos();
+        }
         if (type_info != nullptr) {
           printf("type: %s;", type_info->GetTypeName().c_str());
         }

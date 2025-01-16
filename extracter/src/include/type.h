@@ -40,6 +40,8 @@ class Type {
 
   auto static ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef;
 
+  void static ClearUnionInfos();
+
   void static DeallocDwarfResources(Dwarf_Debug dbg, Dwarf_Die type_die, Dwarf_Error err, Dwarf_Attribute attr);
 
   auto GetTypeName() const -> const std::string &;

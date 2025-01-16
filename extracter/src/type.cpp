@@ -294,11 +294,6 @@ auto Type::ParseStructType(Dwarf_Debug dbg, Dwarf_Die struct_die) -> TypeRef {
   } else {
     LOG_DEBUG(" struct anonymous");
   }
-  /*
-  every time after parse a struct, clear the union info, because the union defined in each struct is different
-   but may have a same name, so need to clear
-  */
-  union_infos.clear();
 
   DeallocDwarfResources(dbg, child_die, err, offset_attr);
   return struct_type_info;
@@ -386,6 +381,8 @@ auto Type::ParseUnionType(Dwarf_Debug dbg, Dwarf_Die union_die) -> TypeRef {
   DeallocDwarfResources(dbg, child_die, err, offset_attr);
   return union_type_info;
 }
+
+void Type::ClearUnionInfos() { union_infos.clear(); }
 
 /* Type:: etter and setter */
 auto Type::GetTypeName() const -> const std::string & { return type_name_; }

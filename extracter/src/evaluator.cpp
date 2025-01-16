@@ -47,12 +47,11 @@ int Evaluator::ExecOperation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned 
   int ret = 0;
   switch (op) {
     case DW_OP_addr:
-      stk_.push(std::move(Expression(op1)));
+      stk_.push(Expression(op1));
       break;
     case DW_OP_deref: {
       auto addr = std::make_shared<Expression>();
       addr->SetFromExp(stk_.top());
-      stk_.pop();
       Expression deref;
       deref.mem_ = addr;
       stk_.push(deref);
@@ -79,14 +78,14 @@ int Evaluator::ExecOperation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned 
     case DW_OP_const4u:
     case DW_OP_const8u:
     case DW_OP_constu:
-      stk_.push(std::move(Expression(op1)));
+      stk_.push(Expression(op1));
       break;
     case DW_OP_const1s:
     case DW_OP_const2s:
     case DW_OP_const4s:
     case DW_OP_const8s:
     case DW_OP_consts:
-      stk_.push(std::move(Expression((Dwarf_Signed)op1)));
+      stk_.push(Expression((Dwarf_Signed)op1));
       break;
     case DW_OP_dup:
       stk_.push(stk_.top());
@@ -196,7 +195,7 @@ int Evaluator::ExecOperation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned 
           : case DW_OP_lit17 : case DW_OP_lit18 : case DW_OP_lit19 : case DW_OP_lit20 : case DW_OP_lit21
           : case DW_OP_lit22 : case DW_OP_lit23 : case DW_OP_lit24 : case DW_OP_lit25 : case DW_OP_lit26
           : case DW_OP_lit27 : case DW_OP_lit28 : case DW_OP_lit29 : case DW_OP_lit30 : case DW_OP_lit31
-          : stk_.push(std::move(Expression((Dwarf_Unsigned)op - DW_OP_lit0)));
+          : stk_.push(Expression((Dwarf_Unsigned)op - DW_OP_lit0));
       break;
 
     case DW_OP_breg0:
@@ -326,10 +325,11 @@ Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, R
   /*
       only parse DW_FORM_sec_offset and DW_FORM_exprloc now
   */
-  int ret;
+  int ret = -1;
   Address res;
   Dwarf_Error err;
-  Dwarf_Loc_Head_c loclist_head;
+  // deallocate in parseLoclist
+  Dwarf_Loc_Head_c loclist_head{nullptr};
   Dwarf_Unsigned locentry_count;
 
   if (loc_form != DW_FORM_sec_offset && loc_form != DW_FORM_exprloc && loc_form != DW_FORM_block &&
