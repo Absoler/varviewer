@@ -71,7 +71,7 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
   evaluator.dbg_ = dbg;
   /* range use to pass the start pc and end pc of the sub_program which contain the variable */
 
-  Address addr = evaluator.ReadLocation(location_attr, loc_form, range);
+  Address addr = evaluator.ReadLocation(location_attr, loc_form, range,false);
   if (addr.valid_ == false) {
     dwarf_dealloc_attribute(location_attr);
     return 1;

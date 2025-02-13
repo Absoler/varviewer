@@ -23,6 +23,8 @@ bool printFDE = false;
 bool noTraverse = false;
 bool OutMemberInMember = false;
 bool matchField = false;
+// use to indicate whether testdfe is over, because when testfde, we do not want to add it to statistics
+bool finishTestFde = false;
 
 // important variables
 bool isFirstJson = true;
@@ -95,6 +97,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   varviewer::testFDE(dbg, printFDE);
+  finishTestFde = true;
   printf("\033[1;34m--- parsing frame info done ---\033[0m\n");
 
   if (useJson) {

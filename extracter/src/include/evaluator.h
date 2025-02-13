@@ -54,9 +54,9 @@ class Evaluator {
   AddressExp ParseDwarfBlock(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_length, const Range &range = dummyrange,
                              bool print = false);
 
-  Address ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range);
+  Address ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range, bool from_update_base);
 
-  Address ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_count, const ArgLocation &arg);
+  Address ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_count, const ArgLocation &arg,bool from_update_base);
 
   Dwarf_Die GetTypeDie();
 };

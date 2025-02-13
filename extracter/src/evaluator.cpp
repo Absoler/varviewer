@@ -19,6 +19,9 @@
 #include "include/util.h"
 #include "include/var_locator.h"
 
+// defined in main.cpp
+extern bool finishTestFde;
+
 namespace varviewer {
 Evaluator tempEvaluator;
 
@@ -317,11 +320,12 @@ AddressExp Evaluator::ParseDwarfBlock(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_le
   // extract from loclist
   // there's only one expression in DW_OP_entry_value's block
   ArgLocation arg(range, print);
-  addr = ParseLoclist(loclist_head, locentry_count, arg);
+  addr = ParseLoclist(loclist_head, locentry_count, arg,false);
   return addr.addrs_[0];
 }
 
-Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range) {
+// when from updatebase is true, we do not record it in statistics
+Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range,bool from_update_base) {
   /*
       only parse DW_FORM_sec_offset and DW_FORM_exprloc now
   */
@@ -348,7 +352,7 @@ Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, R
   }
   LOG_DEBUG("location description count:%llu", locentry_count);
   ArgLocation arg(range, loc_form);
-  res = ParseLoclist(loclist_head, locentry_count, arg);
+  res = ParseLoclist(loclist_head, locentry_count, arg, from_update_base);
   return res;
 }
 
@@ -361,7 +365,7 @@ Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, R
  *  return an address object, which may contain multiple addr_exp objects (depending on the number of location
  *  descriptions)
  */
-Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_count, const ArgLocation &arg) {
+Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_count, const ArgLocation &arg,bool from_update_base) {
   int ret;
   Dwarf_Error err;
   Address res{};
@@ -442,7 +446,10 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
       }
 
       offset_to_index[offsetForBranch] = j;
-      statistics.addOp(op);
+      // only when finish testfde, do we record the statistics
+      if(finishTestFde && !from_update_base){
+        statistics.addOp(op);
+      }
       LOG_DEBUG("op : %d", static_cast<int>(op));
       if ((op >= DW_OP_reg0 && op <= DW_OP_reg31) || op == DW_OP_regx) {
         // save in reg
@@ -477,7 +484,9 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
               addrExp.SetFromExp(stk_.top());
             }
           }
+          if(finishTestFde){
           addrExp.detailedDwarfType_ = statistics.solveOneExpr();
+          }
           res.addrs_.push_back(addrExp);
           addrExp.ResetData();
         }
@@ -609,7 +618,9 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
     }
 
     if (!last_is_piece) {
+      if(finishTestFde && !from_update_base){
       addrExp.detailedDwarfType_ = statistics.solveOneExpr();
+      }
       res.addrs_.push_back(addrExp);
     }
   }

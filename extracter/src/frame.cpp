@@ -33,7 +33,7 @@ int updateFrameBase(Dwarf_Die die, const Range &range) {
   res = dwarf_whatform(framebase_attr, &framebase_form, &err);
   SIMPLE_HANDLE_ERR(res);
 
-  framebase = tempEvaluator.ReadLocation(framebase_attr, framebase_form, range);
+  framebase = tempEvaluator.ReadLocation(framebase_attr, framebase_form, range,true);
   dwarf_dealloc_attribute(framebase_attr);
   std::cout << "\033[1;32m<frame base information>\033[0m\n";
   framebase.Output();

@@ -46,14 +46,13 @@ DetailedDwarfType Statistics::solveOneExpr() {
   exprCnt += 1;
 
   int dwarfType = 0;  // memory default
-  bool hasCFA = false;
+  bool needCFA = false;
 
   for (unsigned i = 0; i < ops_.size(); ++i) {
     Dwarf_Small op = ops_[i];
     if (op == DW_OP_fbreg) {
-      hasCFA = true;
+      needCFA = true;
     }
-
     if (op >= DW_OP_reg0 && op <= DW_OP_reg31) {
       dwarfType = 1;
     }
@@ -64,17 +63,20 @@ DetailedDwarfType Statistics::solveOneExpr() {
 
   if (dwarfType == 0) {
     memoryCnt += 1;
-    res = DetailedDwarfType::MEM_SINGLE;
     if (ops_.size() > 1U) {
       memoryMultiCnt += 1;
       res = DetailedDwarfType::MEM_MULTI;
+      std::cout<<" memory multi\n";
     } else if (ops_[0] == DW_OP_addr) {
       globalCnt += 1;
       res = DetailedDwarfType::MEM_GLOABL;
-    }
-    if (hasCFA) {
+    } else if (needCFA) {
       cfaCnt += 1;
       res = DetailedDwarfType::MEM_CFA;
+      std::cout<<"memory cfa\n";
+    } else{
+      res = DetailedDwarfType::MEM_SINGLE;
+      std::cout<<"memory single\n";
     }
 
   } else if (dwarfType == 1) {
