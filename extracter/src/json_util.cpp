@@ -56,7 +56,7 @@ json createJsonforExpression(const Expression &exp) {
   res["valid"] = exp.valid_;
   res["empty"] = exp.empty_;
   if (exp.mem_) {
-    res["mem"] = createJsonforExpression(*exp.mem_);
+    res["mem"] = createJsonforExpression(*(exp.mem_));
   }
   if (exp.mem_size_) {
     res["mem_size"] = exp.mem_size_;

@@ -201,3 +201,5 @@ cython_debug/
 # json file in ida scripts
 JsonFile/
 dataset/
+test/binutils
+test/common

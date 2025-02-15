@@ -52,6 +52,7 @@ int Evaluator::ExecOperation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned 
     case DW_OP_addr:
       stk_.push(Expression(op1));
       break;
+    // DW_OP_deref means get the top value of the dwarf stack,and treat it as an address 
     case DW_OP_deref: {
       auto addr = std::make_shared<Expression>();
       addr->SetFromExp(stk_.top());
@@ -436,6 +437,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
 
     for (Dwarf_Unsigned j = 0; j < locexpr_op_count; j++) {
       // get the operand value of location operation
+      // for example, (DW_OP_fbreg -80) -> op = DW_OP_fbreg, op1 = -80
       ret = dwarf_get_location_op_value_c(locentry, j, &op, &op1, &op2, &op3, &offsetForBranch, &err);
       if (ret != DW_DLV_OK) {
       }
@@ -568,6 +570,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
             }
           }
         }
+        // TODO(tangc): here may have some logic error, fix it later
         addrExp.needCFA_ = true;
         addrExp.cfa_pcs_ = framebase.addrs_[list_id].cfa_pcs_;
         addrExp.cfa_values_ = framebase.addrs_[list_id].cfa_values_;
