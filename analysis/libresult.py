@@ -84,8 +84,10 @@ def get_address_str_of_insn(insn:Instruction) -> str:
 def get_value_str_of_operand(insn:Instruction, ind:int) -> str:
     
     if insn.op_kind(ind) == OpKind.MEMORY:
-        address = get_address_str_of_insn(insn)   
-        return f"*({getMemTypeStr(insn.memory_size)})({address})"
+        address = get_address_str_of_insn(insn)
+        # 无需再做类型转换
+        return f"({address})"   
+        # return f"*({getMemTypeStr(insn.memory_size)})({address})"
 
     elif insn.op_kind(ind) == OpKind.REGISTER:
         if not (insn.op_register(ind) != Register.NONE):
@@ -149,6 +151,7 @@ class Result:
 
     def construct_expression(self, insn:Instruction) -> bool:
         if insn.op_count < 1:
+            print(f"insn {insn} has no operand")
             return False
         ''' only use the target operand, because it's confirmed
             
@@ -221,7 +224,8 @@ class Result:
                 value:str = get_value_str_of_operand(insn, dst_ind)
                 if not value:
                     return False
-                value = f"({size_str[self.src_size]})({value})@(unsigned {size_str[self.src_size]})({value})"
+                # currently we do not trans here
+                # value = f"({size_str[self.src_size]})({value})@(unsigned {size_str[self.src_size]})({value})"
                 self.expression = value
         
         self.addOffset()

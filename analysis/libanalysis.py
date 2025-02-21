@@ -31,7 +31,7 @@ def compare_exps(exp1:BitVecRef, exp2:BitVecRef, conds:list, useOffset:bool = Fa
     '''
     assert(exp1.size()==exp2.size())
     slv = Solver()
-    slv.set("timeout", 1000)
+    slv.set("timeout", 14000)
     for cond in conds:
         slv.add(cond)
     off = BitVec("off", exp1.size())
@@ -707,6 +707,8 @@ class Analysis:
         detailedDwarfType:DetailedDwarfType = addrExp.detailedDwarfType
         dwarf_regs = extract_regs_from_z3(dwarf_expr)
         dwarf_regs_names = {reg.decl().name() for reg in dwarf_regs}
+        for reg in dwarf_regs_names:
+            print(reg)
 
         ''' dwarf_expr is the value of the variable recorded in the debug info entry
             dwarf_addr is its address
@@ -738,7 +740,10 @@ class Analysis:
             tempFactBlock:TempFactBlock = self.temp_map[node]
             
             for i, ir in enumerate(irsb.statements):
+                # print(f"now the {i}th ir")
+                # Imark记录原始指令的地址
                 if isinstance(ir, pyvex.stmt.IMark):
+                    # print(f"imark {ir.addr:X}")
                     curAddr = ir.addr
                     if curAddr == self.addr_list[-1]:
                         break
@@ -756,11 +761,22 @@ class Analysis:
                     elif ty == DwarfType.MEMORY:
                         dwarf_addr = dwarf_expr
                         dwarf_expr = None
+                # 为每一条可能的IR语句我们都生成一个z3表达式
                 vex_expr:BitVecRef = None
                 vex_exprs:list[BitVecRef] = []
                 hasCandidate = False
+                # 针对单寄存器的情况
+                if hasattr (ir,'data') and isinstance(ir.data, pyvex.expr.Get) and ty == DwarfType.REGISTER:
+                    '''
+                    t1 = get(reg)
+                    '''
+                    # print(f"get {ir.data.offset}")
+                    if get_base_name_vex(ir.data.offset) in dwarf_regs_names:
+                        reses.append(Result(addrExp.name, curAddr,MatchPosition.src_value, 0, ty, detailedDwarfType,addrExp.type_info,irsb.addr, i))
+                        continue
 
-                if isinstance(ir, pyvex.stmt.Put):
+                # put写入寄存器
+                elif isinstance(ir, pyvex.stmt.Put):
                     ''' put(reg) = tmp
                         
                         usually mapped to an instruction such as `mov tmp, reg` 
@@ -768,12 +784,14 @@ class Analysis:
 
                         skip un-useful registers
                     '''
-
+                    # print(f"put {ir.offset}")
                     if not is_useful_reg(ir.offset):
+                        # print(f"skip {ir.offset}")
                         continue
 
                     if isinstance(ir.data, pyvex.expr.RdTmp) and dwarf_regs_names.issubset(tempFactBlock.temp_regs_map[ir.data.tmp]):
                         # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.tmp]}")
+                        
                         vex_expr = self.get_z3_expr_from_vex(ir.data, irsb)
                         vex_expr = post_format(vex_expr)
                         setpos(vex_expr, MatchPosition.src_value)
@@ -783,6 +801,8 @@ class Analysis:
 
                     # overwritten register should also be considered
                     data_size = ir.data.result_size(irsb.tyenv)
+                    # ir.offset代表的是寄存器的编号
+                    # print(f"register name {get_base_name_vex(ir.offset)}")
                     vex_expr = BitVec(get_base_name_vex(ir.offset), 64)
                     if data_size < 64:
                         vex_expr = vex_expr & BitVecVal(and_mask[data_size], 64)
@@ -796,7 +816,7 @@ class Analysis:
 
 
                     '''
-
+                    # print(f"store {ir.addr}")
                     if isinstance(ir.addr, pyvex.expr.RdTmp) and dwarf_regs_names.issubset(tempFactBlock.temp_regs_map[ir.addr.tmp]):
                         # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.addr.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.addr, irsb)
@@ -818,7 +838,7 @@ class Analysis:
                 elif isinstance(ir, pyvex.stmt.WrTmp) and isinstance(ir.data, pyvex.expr.Load):
                     ''' tmp = load(addr)
                     '''
-
+                    # print({f"load {ir.data.addr}"})
                     if isinstance(ir.data.addr, pyvex.expr.RdTmp) and dwarf_regs_names.issubset(tempFactBlock.temp_regs_map[ir.data.addr.tmp]):
                         # print(f"{dwarf_regs} {tempFactBlock.temp_regs_map[ir.data.addr.tmp]}")
                         vex_expr = self.get_z3_expr_from_vex(ir.data.addr, irsb)
@@ -833,13 +853,15 @@ class Analysis:
                     startTime = time.time()
 
                 if not hasCandidate:
+                    # print(f"no candidate")
                     continue
-                
+                # print(f"has candidate, length :  {len(vex_exprs)}")
                 potential_cnt += len(vex_exprs)
-
                 for vex_expr in vex_exprs:
                     ''' avoid z3 match for register location description
                     '''
+                    # not useOffset means we only match the register value
+                    # most of the time, we use offset
                     if ty == DwarfType.REGISTER and not useOffset:
                         vex_regs = extract_regs_from_z3(vex_expr)
                         vex_regs_sizeNames = {(reg.decl().name(), reg.size()) for reg in vex_regs}
@@ -856,15 +878,16 @@ class Analysis:
                     if dwarf_expr != None:
                         offset = compare_exps(vex_expr, dwarf_expr, conds, useOffset)
                         if check_offset(offset, 0):
+                            # print("match success\n")
                             reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, 0, ty, detailedDwarfType,addrExp.type_info,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
 
                     if dwarf_addr != None:
                         offset = compare_exps(vex_expr, dwarf_addr, conds, useOffset)
                         if check_offset(offset, -1):
+                            # print("match success\n")
                             reses.append(Result(addrExp.name, curAddr, vex_expr.matchPos, -1, ty, detailedDwarfType,addrExp.type_info,irsb.addr, i, offset.as_signed_long(), vex_expr.src_size))
                             continue
-
                 
 
                 if showTime:

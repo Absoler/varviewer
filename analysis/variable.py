@@ -40,6 +40,19 @@ class Expression:
             self.sign:bool = jsonExp["sign"]
             self.offset:int = jsonExp["offset"]
             self.regs = jsonExp["regs"]
+            # modify key from str to int
+            '''
+            "regs": {
+                   "7": 1,     
+                   "6": 1
+            }
+                 ---> 
+            regs  {
+                   7: 1,
+                   6: 1
+            }
+
+            '''
             if self.regs:
                 self.regs:dict = {int(reg) : self.regs[reg] for reg in self.regs}
             self.mem:Expression = Expression(jsonExp=jsonExp["mem"]) if "mem" in jsonExp else None
@@ -265,7 +278,12 @@ class Expression:
                 assert(0)
 
         
-        ''' regs + offset
+        ''' 
+        regs + offset
+        eg:
+        self.offset = 10
+        self.regs = {7: 1, 6 : -2},
+        then it's 10 + 1 * dwarf_reg_names[7] - 2 * dwarf_reg_names[6]
         '''
         res = BitVecVal(self.offset, 64)
         if self.regs:
@@ -397,6 +415,7 @@ class AddressExp(Expression):
 
 
     def get_Z3_expr(self, hint: Hint) -> BitVecRef:
+        # variable saved in register
         if self.dwarfType == DwarfType.REGISTER.value:
             return BitVec(dwarf_reg_names[self.reg], 64)
         return super().get_Z3_expr(hint)

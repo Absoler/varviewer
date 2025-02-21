@@ -200,8 +200,8 @@ def main():
             os.remove(piece_name + ".addr")  # Delete the addresses file
         if os.path.exists(piece_name + ".o"):
             os.remove(piece_name + ".o")  # Delete the object file
-        if os.path.exists(piece_name + ".vex"):
-            os.remove(piece_name + ".vex")
+        # if os.path.exists(piece_name + ".vex"):
+            # os.remove(piece_name + ".vex")
             
     
 

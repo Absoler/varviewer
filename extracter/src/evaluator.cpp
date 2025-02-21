@@ -52,24 +52,24 @@ int Evaluator::ExecOperation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned 
     case DW_OP_addr:
       stk_.push(Expression(op1));
       break;
-    // DW_OP_deref means get the top value of the dwarf stack,and treat it as an address 
+    // DW_OP_deref means get the top value of the dwarf stack,and treat it as an address
     case DW_OP_deref: {
-      auto addr = std::make_shared<Expression>();
-      addr->SetFromExp(stk_.top());
-      Expression deref;
-      deref.mem_ = addr;
-      stk_.push(deref);
+      // auto addr = std::make_shared<Expression>();
+      // addr->SetFromExp(stk_.top());
+      // Expression deref;
+      // deref.mem_ = addr;
+      // stk_.push(deref);
       break;
     }
     case DW_OP_deref_size:
     case DW_OP_deref_type: {
-      auto addr = std::make_shared<Expression>();
-      addr->SetFromExp(stk_.top());
-      stk_.pop();
-      Expression deref;
-      deref.mem_ = addr;
-      deref.mem_size_ = op1 * 8;
-      stk_.push(deref);
+      // auto addr = std::make_shared<Expression>();
+      // addr->SetFromExp(stk_.top());
+      // stk_.pop();
+      // Expression deref;
+      // deref.mem_ = addr;
+      // deref.mem_size_ = op1 * 8;
+      // stk_.push(deref);
       break;
       /*
           do not care about type now, `DW_OP_deref_type` has the second
@@ -264,8 +264,8 @@ int Evaluator::ExecOperation(Dwarf_Small op, Dwarf_Unsigned op1, Dwarf_Unsigned 
           no_handle(DW_OP_addrx) no_handle(DW_OP_constx)
 
               no_handle(DW_OP_const_type)
-
-                  case DW_OP_regval_type : {
+      case DW_OP_GNU_regval_type:
+      case DW_OP_regval_type : {
         // no handle op2 type
         Expression reg_off;
         reg_off.reg_scale_[op1] = 1;
@@ -321,12 +321,12 @@ AddressExp Evaluator::ParseDwarfBlock(Dwarf_Ptr exp_bytes, Dwarf_Unsigned exp_le
   // extract from loclist
   // there's only one expression in DW_OP_entry_value's block
   ArgLocation arg(range, print);
-  addr = ParseLoclist(loclist_head, locentry_count, arg,false);
+  addr = ParseLoclist(loclist_head, locentry_count, arg, false);
   return addr.addrs_[0];
 }
 
 // when from updatebase is true, we do not record it in statistics
-Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range,bool from_update_base) {
+Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, Range range, bool from_update_base) {
   /*
       only parse DW_FORM_sec_offset and DW_FORM_exprloc now
   */
@@ -366,7 +366,8 @@ Address Evaluator::ReadLocation(Dwarf_Attribute loc_attr, Dwarf_Half loc_form, R
  *  return an address object, which may contain multiple addr_exp objects (depending on the number of location
  *  descriptions)
  */
-Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_count, const ArgLocation &arg,bool from_update_base) {
+Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned locentry_count, const ArgLocation &arg,
+                                bool from_update_base) {
   int ret;
   Dwarf_Error err;
   Address res{};
@@ -449,7 +450,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
 
       offset_to_index[offsetForBranch] = j;
       // only when finish testfde, do we record the statistics
-      if(finishTestFde && !from_update_base){
+      if (finishTestFde && !from_update_base) {
         statistics.addOp(op);
       }
       LOG_DEBUG("op : %d", static_cast<int>(op));
@@ -486,8 +487,8 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
               addrExp.SetFromExp(stk_.top());
             }
           }
-          if(finishTestFde){
-          addrExp.detailedDwarfType_ = statistics.solveOneExpr();
+          if (finishTestFde) {
+            addrExp.detailedDwarfType_ = statistics.solveOneExpr();
           }
           res.addrs_.push_back(addrExp);
           addrExp.ResetData();
@@ -598,7 +599,7 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
           break;
         }
         /* gloval var , set its start pc and end pc to 0 */
-        if (op == DW_OP_addr) {
+        if (op == DW_OP_addr && locentry_count == 1) {
           addrExp.startpc_ = 0;
           addrExp.endpc_ = 0;
         }
@@ -621,8 +622,8 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
     }
 
     if (!last_is_piece) {
-      if(finishTestFde && !from_update_base){
-      addrExp.detailedDwarfType_ = statistics.solveOneExpr();
+      if (finishTestFde && !from_update_base) {
+        addrExp.detailedDwarfType_ = statistics.solveOneExpr();
       }
       res.addrs_.push_back(addrExp);
     }

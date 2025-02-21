@@ -13,6 +13,7 @@
 #include <string>
 #include <unordered_set>
 #include "include/address.h"
+#include "include/logger.h"
 #include "include/type.h"
 #include "include/util.h"
 
@@ -431,6 +432,11 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
 
       if (/* tag == DW_TAG_lexical_block || */ tag == DW_TAG_subprogram) {
         // set start_pc and end_pc
+        char * subprogram_name {nullptr};
+        get_name(dbg,fa_die,&subprogram_name);
+        if(subprogram_name != nullptr){
+          LOG_DEBUG("subprogram name : %s",subprogram_name);
+        }
         range.setFromDie(fa_die);
         modifyRange = true;
       }
