@@ -197,7 +197,8 @@ class Result:
                 self.expression = address
             
             elif self.matchPos == MatchPosition.dst_value:
-                value = get_value_str_of_operand(insn, dst_ind)
+                # the second para should be 1, but avoid the case that insn.op_count == 1
+                value = get_value_str_of_operand(insn, insn.op_count - 1)
                 if not value:
                     return False
                 self.expression = value
@@ -221,7 +222,7 @@ class Result:
                     so when testing, we need cast dst value to src value, so now
                     we use `src_size` to construct the expression string
                 '''
-                value:str = get_value_str_of_operand(insn, dst_ind)
+                value:str = get_value_str_of_operand(insn, insn.op_count-1)
                 if not value:
                     return False
                 # currently we do not trans here

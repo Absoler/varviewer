@@ -66,9 +66,9 @@ def main():
     if set `useCache`, means we have run this already
     '''
     if not useCache:
-        if os.path.exists(tempPath):
-            shutil.rmtree(tempPath)
-        os.mkdir(tempPath)
+        if not os.path.exists(tempPath):
+            # shutil.rmtree(tempPath)
+            os.mkdir(tempPath)
 
     print(f"preparations time: {time.time() - beginTime}s")
     
@@ -179,10 +179,12 @@ def main():
         
         if len(reses) > 0:
             matchCount += 1
+        print(f"len reses {len(reses)}")
         for res in reses:
             try:
                 res.piece_num = piece_num
                 success = res.construct_expression(all_insts[find_l_ind(all_insts, res.addr)])
+                print(f"construct expression {res.expression}")
                 if success:
                     all_reses.append(res)
             except Exception as e:
@@ -204,7 +206,6 @@ def main():
             # os.remove(piece_name + ".vex")
             
     
-
     ''' output result
     '''
     print(f"match {matchCount} / {count} variable debug info entry")
