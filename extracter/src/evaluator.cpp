@@ -413,6 +413,9 @@ Address Evaluator::ParseLoclist(Dwarf_Loc_Head_c loclist_head, Dwarf_Unsigned lo
         addrExp.startpc_ = raw_lopc;
         addrExp.endpc_ = raw_hipc;
       }
+      if(addrExp.startpc_ > addrExp.endpc_){
+        continue;
+      }
       // `exprloc` is single location description, getting range from lexical block owning it
       // `DW_FORM_exprloc` can only be `exprloc` class
       if (loc_form == DW_FORM_exprloc) {

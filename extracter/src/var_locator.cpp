@@ -80,17 +80,19 @@ int TestEvaluator(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, Range ra
   if (name) {
     addr.name_ = std::string(name);
   }
-  char *file_name = NULL;
+  char *file_name{nullptr};
   Dwarf_Unsigned decl_row = -1, decl_col = -1;
+  LOG_DEBUG("before TestDeclPos");
   res = TestDeclPos(dbg, cu_die, var_die, &file_name, &decl_row, &decl_col);
+  LOG_DEBUG("after TestDeclPos, res : %d", res);
   if (file_name) {
     addr.decl_file_ = std::string(file_name);
   }
   addr.decl_row_ = decl_row;
   addr.decl_col_ = decl_col;
   addr.type_info_ = type_info;
-  Dwarf_Half tag;
-  dwarf_tag(var_die, &tag, &err);
+  // Dwarf_Half tag;
+  // dwarf_tag(var_die, &tag, &err);
   if (useJson) {
     json addrJson = createJsonforAddress(addr);
     std::string jsonStr = addrJson.dump(4);
@@ -261,8 +263,13 @@ int TestDeclPos(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, char **dec
     dwarf_dealloc_attribute(decl_file_attr);
     return res;
   }
-
-  (*decl_file_name) = filenames[decl_file - 1];
+  // some file index is invalid,now do not know why,set it to unknow
+  if (decl_file > static_cast<Dwarf_Unsigned>(count)) {
+    // need to cast const char * to char *
+    *(decl_file_name) = const_cast<char *>("unknown");
+  } else {
+    (*decl_file_name) = filenames[decl_file - 1];
+  }
   // printindent(indent);
   // printf("%lld %llu %s\n", count, decl_file, filenames[decl_file-1]);
 
@@ -284,7 +291,6 @@ int TestDeclPos(Dwarf_Debug dbg, Dwarf_Die cu_die, Dwarf_Die var_die, char **dec
   dwarf_dealloc_attribute(decl_file_attr);
   dwarf_dealloc_attribute(decl_row_attr);
   dwarf_dealloc_attribute(decl_row_attr);
-
   return DW_DLV_OK;
 }
 
@@ -432,10 +438,10 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
 
       if (/* tag == DW_TAG_lexical_block || */ tag == DW_TAG_subprogram) {
         // set start_pc and end_pc
-        char * subprogram_name {nullptr};
-        get_name(dbg,fa_die,&subprogram_name);
-        if(subprogram_name != nullptr){
-          LOG_DEBUG("subprogram name : %s",subprogram_name);
+        char *subprogram_name{nullptr};
+        get_name(dbg, fa_die, &subprogram_name);
+        if (subprogram_name != nullptr) {
+          LOG_DEBUG("subprogram name : %s", subprogram_name);
         }
         range.setFromDie(fa_die);
         modifyRange = true;
@@ -496,6 +502,7 @@ void WalkDieTree(Dwarf_Die cu_die, Dwarf_Debug dbg, Dwarf_Die fa_die, Range rang
           dwarf_dealloc_attribute(location_attr);
         } else {
           // fprintf(stderr, "%s no location\n", var_name);
+          LOG_DEBUG("%s no location", var_name);
           varNoLocation += 1;
         }
       }
