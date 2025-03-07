@@ -149,9 +149,9 @@ int main(int argc, char *argv[]) {
   jsonOut.close();
 
   // output statistics
-  std::cout << "---------------- statistics ----------------"
-            << "\n";
-  std::cout << "variable die doesn't have location attribute: " << varNoLocation << "\n";
-  std::cout << varviewer::statistics.output() << "\n";
+  // std::cout << "---------------- statistics ----------------"
+  // << "\n";
+  // std::cout << "variable die doesn't have location attribute: " << varNoLocation << "\n";
+  // std::cout << varviewer::statistics.output() << "\n";
   return 0;
 }

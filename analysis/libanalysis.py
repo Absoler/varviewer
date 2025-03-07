@@ -740,7 +740,7 @@ class Analysis:
             tempFactBlock:TempFactBlock = self.temp_map[node]
             
             for i, ir in enumerate(irsb.statements):
-                print(f"now the {i}th ir")
+                # print(f"now the {i}th ir")
                 # Imark记录原始指令的地址
                 if isinstance(ir, pyvex.stmt.IMark):
                     # print(f"imark {ir.addr:X}")
@@ -771,12 +771,9 @@ class Analysis:
                     t1 = get(reg)
                     '''
                     # print(f"get {ir.data.offset}")
-                    print("in here")
-                    print(f"vex reg name {get_base_name_vex(ir.data.offset)}")
+                    # print(f"vex reg name {get_base_name_vex(ir.data.offset)}")
                     if get_base_name_vex(ir.data.offset) in dwarf_regs_names:
-                        print("match success")
                         reses.append(Result(addrExp.name, curAddr,MatchPosition.src_value, 0, ty, detailedDwarfType,addrExp.type_info,irsb.addr, i))
-                        print("length of reses",len(reses))
                         continue
 
                 # put写入寄存器

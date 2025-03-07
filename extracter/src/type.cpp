@@ -88,9 +88,24 @@ auto Type::ParseTypeDieInternal(Dwarf_Debug dbg, Dwarf_Die var_die, const bool &
   res = dwarf_hasattr(var_die, DW_AT_type, &has_type, &err);
 
   if (!has_type) {
-    /* when program reach here, it means void type, void * , void ** ... */
-    DeallocDwarfResources(dbg, type_die, err, type_attr);
-    return std::make_shared<BaseType>("void", 8, is_pointer, level);
+    Dwarf_Bool has_origin;
+    /* get DW_AT_abstract_origin attribute, because parameter's type info will save in the abstract origin */
+    res = dwarf_hasattr(var_die, DW_AT_abstract_origin, &has_origin, &err);
+    if (!has_origin) {
+      /* when program reach here, it means void type, void * , void ** ... */
+      DeallocDwarfResources(dbg, type_die, err, type_attr);
+      return std::make_shared<BaseType>("void", 8, is_pointer, level);
+    }
+    Dwarf_Attribute off_attr;
+    Dwarf_Half off_form;
+    res = dwarf_attr(var_die, DW_AT_abstract_origin, &off_attr, &err);
+    res = dwarf_whatform(off_attr, &off_form, &err);
+    Dwarf_Off offset;
+    Dwarf_Bool is_info;
+    res = dwarf_global_formref_b(off_attr, &offset, &is_info, &err);
+    Dwarf_Die origin_die;
+    res = dwarf_offdie_b(dbg, offset, is_info, &origin_die, &err);
+    return ParseTypeDieInternal(dbg, origin_die, is_pointer, level);
   }
 
   /* get DW_AT_type attribute */
