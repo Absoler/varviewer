@@ -78,6 +78,7 @@ class Instruction:
     def to_dict(self):
         return {
             "Address": self.Instruction_Address,
+            "Address_hex":self.Instruction_Address_16,
             "Disasm_Code": self.Instruction_Disasm_Code,
             "Opcode": self.Instruction_Opcode,
             "Operand_Count": self.Instruction_Operand_Count,

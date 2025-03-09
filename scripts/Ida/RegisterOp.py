@@ -3,7 +3,7 @@ from Instruction import  Instruction
 from ResultFormat import  *
 
 '''
-return a real register name that is covered by n ida-given name ,two return value
+return a real register name that is covered by a ida-given name ,two return value
 bool indicate whether a name is corvered
 '''
 def get_real_register_name(register_index:int,showed_register_name:string):

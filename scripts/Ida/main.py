@@ -10,6 +10,7 @@ import string
 import json
 import  ida_nalt
 import  ida_name
+import  ida_loader
 import InstructionOp
 from Instruction import Instruction
 from Instruction import InstructionOperandType
@@ -150,23 +151,27 @@ def process():
                     Instruction_List.append(temp)
 
     json_file_name = input_file_name + '.json'
-    json_file_path = os.path.join(R'D:\Files\PythonCode\IdaVarviewer\JsonFile',json_file_name)
+    input_file_path = ida_loader.get_path(ida_loader.PATH_TYPE_IDB)
+    input_file_dir = os.path.dirname(input_file_path)
+    # print(f"input file path : {input_file_path}")
+    json_file_path = os.path.join(input_file_dir,json_file_name)
     save_to_json(json_file_path,Instruction_List)
 
-
     result_file_name = input_file_name + '_result' + '.json'
-    result_file_path = os.path.join(R'D:\Files\PythonCode\IdaVarviewer\JsonFile',result_file_name)
-
+    result_file_path = os.path.join(input_file_dir,result_file_name)
+    print(f"JSON file path: {json_file_path}")
+    print(f"Result file path: {result_file_path}")
 
     '''
     deal with the Instruction
     '''
+    global_cnt:int = 0
     for ins in Instruction_List:
         print(ins)
         for index in range(ins.operand_count):
             # print(ins.address_16,ins.get_operand_info(index),ins.get_operand_type(index),ins.get_operand_type_num(index))
             #some operation like "idiv ecx" have two operand,get the first operand will return empty string "
-            if ins.get_operand_info(index) == "":
+            if ins.get_operand_info(index) == "" or ins.get_operand_info(index).startswith("ds:"):
                 continue
 
             #skip the immediate operand
@@ -182,32 +187,31 @@ def process():
                 real_register_name = '$' + real_register_name
                 if flag:
                     match_pos = MatchPosition.dst_value if index == 0 else MatchPosition.src_value
-                    temp_result = Result(name=ins.get_operand_info(index), addr=ins.address, expression=real_register_name,
-                                         operand_type=ins.get_operand_type(index), matchPos=match_pos, indirect=0,
-                                         dwarfType=DwarfType.MEMORY, variable_type=VariableType.MEM_CFA, offset=0)
+                    temp_result = Result(name=ins.get_operand_info(index), addr=ins.address, expression=real_register_name,matchPos=match_pos,operand_type=ins.get_operand_type(index))
                     Result_List.append(temp_result)
             #
             #          Direct Memory Reference
             #
-            elif ins.get_operand_type(index) == "Direct Memory Reference":
-                memory_address = ins.get_operand_value(index)
-                #get_name return the name in the address
-                showed_name:string = ida_name.get_name(memory_address )
-                #the name can be data or func,we should only care about data
-                if showed_name != "":
-                    # start with __ and we are not in kernel, ignore it
-                    if showed_name.startswith('__') and kernel_analysis == False:
-                        continue
-                    if(ida_funcs.get_func(memory_address ) == None):
-                        #symbol and ,skip it
-                            #print(f"变量:{showed_name}")
-                            match_pos = MatchPosition.dst_value if index == 0 else MatchPosition.src_value
-                            temp_result = Result(name = showed_name,addr=ins.address,expression=memory_address,operand_type=ins.get_operand_type(index),matchPos=match_pos,indirect=0,
-                                                 dwarfType=DwarfType.MEMORY,variable_type=VariableType.MEM_CFA,offset=0
-                                                 )
-                            Result_List.append(temp_result)
-                    else:
-                        pass
+            # elif ins.get_operand_type(index) == "Direct Memory Reference":
+            #     global_cnt += 1
+            #     memory_address = ins.get_operand_value(index)
+            #     #get_name return the name in the address
+            #     showed_name:string = ida_name.get_name(memory_address )
+            #     #the name can be data or func,we should only care about data
+            #     if showed_name != "":
+            #         # start with __ and we are not in kernel, ignore it
+            #         if showed_name.startswith('__') and kernel_analysis == False:
+            #             continue
+            #         if(ida_funcs.get_func(memory_address ) == None):
+            #             #symbol and ,skip it
+            #                 #print(f"变量:{showed_name}")
+            #                 match_pos = MatchPosition.dst_value if index == 0 else MatchPosition.src_value
+            #                 temp_result = Result(name = showed_name,addr=ins.address,expression=memory_address,operand_type=ins.get_operand_type(index),matchPos=match_pos,indirect=0,
+            #                                      dwarfType=DwarfType.MEMORY,variable_type=VariableType.MEM_CFA,offset=0
+            #                                      )
+            #                 Result_List.append(temp_result)
+            #         else:
+            #             pass
             #
             #     Memory Ref, [Base Reg + Index Reg]
             #
@@ -216,8 +220,11 @@ def process():
                 # remove the "*word ptr"
                 if 'word' in showed_name and 'ptr' in showed_name:
                     showed_name = showed_name[showed_name.find('[')::]
+                add_count = showed_name.count('+')
+                sub_count = showed_name.count('-')
+                mul_count = showed_name.count('*')
                 #one register  eg:[rax]
-                if showed_name.startswith('[') and showed_name.endswith(']') and showed_name.find('+') == -1 and showed_name.find('-') == -1:
+                if add_count == 0 and sub_count == 0:
                    # remove [ ]
                    cursor = showed_name.find('[')
                    # screen showed name
@@ -226,41 +233,85 @@ def process():
                    flag,real_register_name = get_real_register_name(register_index,showed_register_name)
                    if flag:
                      real_register_name = '($' + real_register_name + ')'
-                     match_pos = MatchPosition.dst_addr if index == 0 else MatchPosition.src_addr
-                     temp_result = Result(name = showed_register_name,addr=ins.address,expression=real_register_name,operand_type=ins.get_operand_type(index),matchPos=match_pos,indirect=0,
-                                                 dwarfType=DwarfType.MEMORY,variable_type=VariableType.MEM_CFA,offset=0
-                                              )
+                     match_pos = MatchPosition.dst_value if index == 0 else MatchPosition.src_value
+                     temp_result = Result(name = showed_register_name,addr=ins.address,expression=real_register_name,operand_type=ins.get_operand_type(index),matchPos=match_pos)
                      Result_List.append(temp_result)
+                #[rbx + rax]
+                elif add_count + sub_count == 1 and mul_count == 0:
+                    pass
+                #[rbx + 4 * rax]
+                elif add_count + sub_count == 1 and mul_count == 1:
+                    pass
+                #[rsp + 60h + mgsbuf] msgbuf = -60h
+                elif add_count + sub_count == 2 and mul_count == 0:
+                    pass
+                else:
+                    # in deed this four branch is not necessary,
+                    # because this can not map to a variable in source
+                    # i just use this to record the format may occur
+                    pass
+
             #
             #      "Memory Operand with Offset"  [Base Reg + Index Reg + Displacement]
             #
             elif ins.get_operand_type(index) == "Memory Operand with Offset":
                 insn = ida_ua.insn_t()
                 insnlen = ida_ua.decode_insn(insn, ins.address)
-                pattern = r'^.+\[\w+\]$'
                 showed_name = ins.get_operand_info(index)
                 if 'word' in showed_name and 'ptr' in showed_name:
                     showed_name = showed_name[showed_name.find('[')::]
-                #reg + displacement,one reg
-                if showed_name.count('+') == 1:
+                if 'byte' in showed_name and 'ptr' in showed_name:
+                    showed_name = showed_name[showed_name.find('[')::]
+
+                add_count = showed_name.count('+')
+                sub_count = showed_name.count('-')
+                mul_count = showed_name.count('*')
+                # reg + displacement,one reg [rsp + var_30]
+                if add_count == 1 and sub_count == 0 and mul_count == 0:
                     cursor = ins.get_operand_info(index).find('+')
                     showed_displacement = showed_name[cursor+1::].replace(']','')
                     real_displacement = twos_complement_to_decimal(insn.ops[index].addr,64)
+                    register_index = insn.ops[index].reg
                     if real_displacement != 0 and not is_safe_int(showed_displacement):
                         #have a recorved name
-                        register_name = ins.get_operand_info(index)[:cursor:].replace('[','')
+                        flag,register_name = get_real_register_name(register_index,'')
                         if real_displacement < 0:
                             expression = '($' + register_name + str(real_displacement) + ')'
                         else:
                             expression = '($' + register_name + '+' +str(real_displacement) + ')'
                         match_pos = MatchPosition.dst_value if index == 0 else MatchPosition.src_value
                         temp_result = Result(name=showed_displacement, addr=ins.address, expression=expression,
-                                             operand_type=ins.get_operand_type(index), matchPos=match_pos, indirect=0,
-                                             dwarfType=DwarfType.MEMORY, variable_type=VariableType.MEM_CFA, offset=0
-                                             )
+                                             operand_type=ins.get_operand_type(index), matchPos=match_pos)
                         Result_List.append(temp_result)
+                #[rdi + rbp * 8 + 8] [rsp + 0A8H + var_28 + 4]
+                elif add_count + sub_count >= 2 and (mul_count >= 1 or mul_count == 0):
+                        #以 + - 分割
+                        showed_name = showed_name.strip("[]")
+                        match = re.search(r'[+-]',showed_name)
+                        if match:
+                            showed_name = showed_name[match.start()+1:]
+                        parts = re.split(r'[+-]',showed_name)
+                        # 去除空字符串并去除两端空格
+                        parts = [p.strip() for p in parts if p.strip()]
+                        register_index = insn.ops[index].reg
+                        real_displacement = twos_complement_to_decimal(insn.ops[index].addr,64)
+                        if real_displacement != 0:
+                           for part in parts:
+                              if part.count('*') != 0:
+                                  continue
+
+                              if not is_safe_int(part):
+                                  flag,register_name = get_real_register_name(register_index,'')
+                                  if real_displacement < 0:
+                                    expression = '($' + register_name + str(real_displacement) + ')'
+                                  else:
+                                    expression = '($' + register_name + '+' + str(real_displacement) + ')'
+                                  match_pos = MatchPosition.dst_value if index == 0 else MatchPosition.src_value
+                                  temp_result = Result(name=part, addr=ins.address, expression=expression,
+                                                   operand_type=ins.get_operand_type(index), matchPos=match_pos)
+                                  Result_List.append(temp_result)
                 # pgdir_shift[physbase]
-                elif re.match(pattern,showed_name) is not None:
+                elif add_count == 0 and sub_count == 0:
                         register_index = insn.ops[index].reg
                         showed_register_name = showed_name[showed_name.find('[')::].replace(']','')
                         showed_replacement: string = showed_name[:showed_name.find('['):]
@@ -272,13 +323,13 @@ def process():
                         else:
                             expression = '($' + real_register_name + '+' + str(real_displacement) + ')'
                         temp_result = Result(name=showed_replacement, addr=ins.address, expression=expression,
-                                                     operand_type=ins.get_operand_type(index), matchPos=match_pos,
-                                                     indirect=0,dwarfType=DwarfType.MEMORY, variable_type=VariableType.MEM_CFA,offset=0
-                                                     )
+                                                     operand_type=ins.get_operand_type(index), matchPos=match_pos)
                         Result_List.append(temp_result)
     '''
     outpust result into json format
     '''
+    Result_List = [x for x in Result_List if x.name != ""  and not x.name.startswith("var_") and not x.name.startswith("arg_")]
+    print(f"Total Result Num : {len(Result_List)}")
     save_to_json(result_file_path,Result_List);
 
 
@@ -289,4 +340,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    print(1)
+    print("extract over")
