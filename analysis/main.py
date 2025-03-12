@@ -153,12 +153,15 @@ def main():
             startTime = time.time()
         
         # angr analysis and cfg
-        proj = angr.Project(piece_file, load_options={'auto_load_libs' : False})
-        cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
-        analysis = Analysis(proj, cfg)
-        analysis.analyzeCFG()
-        print("\033[31mcfg analysis done\033[0m")
-        
+        try:
+          proj = angr.Project(piece_file, load_options={'auto_load_libs' : False})
+          cfg:angr.analyses.cfg.cfg_fast.CFGFast = proj.analyses.CFGFast()
+          analysis = Analysis(proj, cfg)
+          analysis.analyzeCFG()
+          print("\033[31mcfg analysis done\033[0m")
+        except Exception as e:
+            print(f"can not build cfg, exception: {e}")
+            continue
         if args.dumpVex:
             analysis.dumpVex(piece_name + ".vex")
 
