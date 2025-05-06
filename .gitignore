@@ -201,6 +201,7 @@ cython_debug/
 # json file in ida scripts
 JsonFile/
 dataset/
-dataset-optimizer
-test/
+dataset-*
 settings.json
+*.txt
+*.json
